@@ -170,7 +170,16 @@ Use AskUserQuestion:
   - "Run discuss-phase first" — Capture design decisions before planning
 
 If "Continue without context": Proceed to step 5.
-If "Run discuss-phase first": Display `/gsd:discuss-phase {X}` and exit workflow.
+If "Run discuss-phase first":
+  **IMPORTANT:** Do NOT invoke discuss-phase as a nested Skill/Task call — AskUserQuestion
+  does not work correctly in nested subcontexts (#1009). Instead, display the command
+  and exit so the user runs it as a top-level command:
+  ```
+  Run this command first, then re-run /gsd:plan-phase {X}:
+
+  /gsd:discuss-phase {X}
+  ```
+  **Exit the plan-phase workflow. Do not continue.**
 
 ## 5. Handle Research
 
