@@ -8,7 +8,7 @@
 
 **Solves context rot — the quality degradation that happens as Claude fills its context window.**
 
-[**English**](README.md) | [**Português**](README.pt-BR.md) | [**简体中文**](docs/zh-CN/README.md) | [**日本語**](docs/ja-JP/README.md) | [**한국어**](README.ko-KR.md)
+[**English**](README.md) | [**Português**](README.pt-BR.md) | [**简体中文**](docs/zh-CN/README.md) | [**日本語**](docs/ja-JP/README.md) | [**한국어**](docs/ko-KR/README.md)
 
 [![npm version](https://img.shields.io/npm/v/get-shit-done-cc?style=for-the-badge&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/get-shit-done-cc)
 [![npm downloads](https://img.shields.io/npm/dm/get-shit-done-cc?style=for-the-badge&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/get-shit-done-cc)
