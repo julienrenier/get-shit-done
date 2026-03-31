@@ -552,8 +552,9 @@ ${AGENT_SKILLS_EXECUTOR}
 
 <constraints>
 - Execute all tasks in the plan
-- Commit each task atomically
+- Commit each task atomically (code changes only)
 - Create summary at: ${QUICK_DIR}/${quick_id}-SUMMARY.md
+- Do NOT commit docs artifacts (SUMMARY.md, STATE.md, PLAN.md) — the orchestrator handles the docs commit in Step 8
 - Do NOT update ROADMAP.md (quick tasks are separate from planned phases)
 </constraints>
 ",
@@ -681,7 +682,7 @@ Use Edit tool to make these changes atomically
 
 **Step 8: Final commit and completion**
 
-Stage and commit quick task artifacts:
+Stage and commit quick task artifacts. This step MUST always run — even if the executor already committed some files (e.g. when running without worktree isolation). The `gsd-tools commit` command handles already-committed files gracefully.
 
 Build file list:
 - `${QUICK_DIR}/${quick_id}-PLAN.md`
@@ -692,6 +693,9 @@ Build file list:
 - If `$FULL_MODE` and verification file exists: `${QUICK_DIR}/${quick_id}-VERIFICATION.md`
 
 ```bash
+# Explicitly stage all artifacts before commit — PLAN.md may be untracked
+# if the executor ran without worktree isolation and committed docs early
+git add ${file_list} 2>/dev/null
 node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" commit "docs(quick-${quick_id}): ${DESCRIPTION}" --files ${file_list}
 ```
 
