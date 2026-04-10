@@ -362,6 +362,9 @@ Execute each selected wave in sequence. Within a wave: parallel if `PARALLELIZAT
        fi
        ```
 
+       `reset --hard` is safe here because this is a fresh worktree with no user changes. It
+       resets both the HEAD pointer AND the working tree to the correct base commit (#2015).
+
        If `ACTUAL_BASE` == `{EXPECTED_BASE}`: the branch base is correct, proceed immediately.
 
        This check fixes a known issue where `EnterWorktree` creates branches from
