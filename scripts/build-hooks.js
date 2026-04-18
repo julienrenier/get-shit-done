@@ -25,7 +25,9 @@ const HOOKS_TO_COPY = [
   // Community hooks (bash, opt-in via .planning/config.json hooks.community)
   'gsd-session-state.sh',
   'gsd-validate-commit.sh',
-  'gsd-phase-boundary.sh'
+  'gsd-phase-boundary.sh',
+  // Opt-in via .planning/config.json hooks.questions_autorefresh
+  'gsd-questions-refresh.js'
 ];
 
 /**
