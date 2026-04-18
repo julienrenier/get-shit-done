@@ -124,7 +124,7 @@ Orchestration logic that commands reference. Contains the step-by-step process i
 - State update patterns
 - Error handling and recovery
 
-**Total workflows:** 80
+**Total workflows:** 81
 
 ### Agents (`agents/*.md`)
 

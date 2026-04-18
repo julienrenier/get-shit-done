@@ -15,7 +15,7 @@ describe('discuss-phase markdown mode (file-based recursive)', () => {
   const commandPath = path.join(__dirname, '..', 'commands', 'gsd', 'discuss-phase.md');
   const workflowPath = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'discuss-phase.md');
   const fileWorkflowPath = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'discuss-phase-file.md');
-  const questionWorkflowPath = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'discuss-question-file.md');
+  const questionWorkflowPath = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'discuss-question-markdown.md');
 
   describe('command file (discuss-phase.md)', () => {
     test('mentions --markdown flag in argument-hint or description', () => {
@@ -194,11 +194,11 @@ describe('discuss-phase markdown mode (file-based recursive)', () => {
     });
   });
 
-  describe('recursive question workflow file (discuss-question-file.md)', () => {
+  describe('recursive question workflow file (discuss-question-markdown.md)', () => {
     test('file exists', () => {
       assert.ok(
         fs.existsSync(questionWorkflowPath),
-        'get-shit-done/workflows/discuss-question-file.md should exist'
+        'get-shit-done/workflows/discuss-question-markdown.md should exist'
       );
     });
 
