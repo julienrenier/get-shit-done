@@ -171,6 +171,11 @@ Exit workflow.
 - Read and execute @~/.claude/get-shit-done/workflows/discuss-phase-power.md end-to-end
 - Do not continue with the steps below
 
+**Markdown mode** — If `--markdown` is present in ARGUMENTS:
+- Skip interactive questioning entirely
+- Read and execute @~/.claude/get-shit-done/workflows/discuss-phase-file.md end-to-end
+- Do not continue with the steps below
+
 **All mode** — If `--all` is present in ARGUMENTS:
 - In `present_gray_areas`: auto-select ALL gray areas without asking the user (skips the AskUserQuestion selection step)
 - Discussion for each area proceeds fully interactively (user drives the conversation for every area)
@@ -1301,6 +1306,23 @@ The power user mode generates ALL questions upfront into machine-readable and hu
 4. On "refresh": read the JSON, process answered questions, update stats and HTML
 5. On "finalize": read all answers from JSON, generate CONTEXT.md in the standard format
 </power_user_mode>
+
+<markdown_mode>
+When `--markdown` flag is present in ARGUMENTS, skip interactive questioning and execute the markdown-tree workflow.
+
+The markdown mode generates a **recursive tree of per-question markdown files** plus a canonical JSON state and an INDEX.md dashboard. The user answers each question in its own .md file via a conversation thread and a single-checkbox finalize; big questions can be split (auto or on-demand) into child sub-questions that follow the identical recursive workflow; sibling questions appear in parallel waves when logically independent, or sequentially when a dependency edge is detected (i.e. at least one answer to A would empty B's option space).
+
+**Full step-by-step instructions (orchestrator):** @~/.claude/get-shit-done/workflows/discuss-phase-file.md
+**Per-question recursive workflow:** @~/.claude/get-shit-done/workflows/discuss-question-file.md
+
+**Summary of flow:**
+1. Run the same phase analysis as standard mode, grouping gray areas into question nodes
+2. Auto-split questions that hit complexity heuristics; compute DAG dependencies between siblings by the logical-independence rule
+3. Write `{phase_dir}/{padded_phase}-QUESTIONS.json` (canonical state), one `.md` per leaf question under `{phase_dir}/{padded_phase}-questions/`, and `INDEX.md` showing only active leaves
+4. Notify the user with file paths and wait for `refresh`, `split Q-XX en N`, `finalize`, or `exit markdown mode` commands
+5. On `refresh`: re-read each active `.md`, reply to new `> User:` comments, detect checkbox locks, handle `**Split:** yes N` markers, re-evaluate DAG dependencies, resurrect split parents when all children lock, rewrite INDEX.md
+6. On `finalize`: walk the tree, collect locked answers (with parent synthesis), generate CONTEXT.md in the standard format
+</markdown_mode>
 
 <success_criteria>
 - Phase validated against roadmap
