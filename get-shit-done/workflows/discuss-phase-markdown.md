@@ -1,5 +1,5 @@
 <purpose>
-Markdown mode for discuss-phase. Generates a **recursive tree of markdown question files** (one `.md` per question, organized as a DAG of dependencies) plus a canonical JSON state file and an `INDEX.md` dashboard. The user answers at their own pace in their editor — per-question conversation threads, checkbox finalization, and on-demand or auto split into child sub-questions. When the user signals readiness, all locked answers are synthesized into CONTEXT.md.
+Markdown mode for discuss-phase. Generates a **recursive tree of markdown question files** (one `.md` per question, organized as a DAG of dependencies) plus an `INDEX.md` dashboard. The user answers at their own pace in their editor — per-question conversation threads, checkbox finalization, and on-demand or auto split into child sub-questions. When the user signals readiness, all locked answers are synthesized into CONTEXT.md.
 
 **When to use:** Large phases with many gray areas, or when users prefer editor-based workflows (vim, VSCode) over browser UIs; particularly valuable when questions are too large to answer in one shot and benefit from being split into smaller child questions.
 </purpose>
@@ -106,18 +106,26 @@ Claude generates as many children as needed — **no fixed N**. The only require
 </step>
 
 <step name="notify_user">
-After writing the JSON, the tree, and INDEX.md, print this message to the user:
+After writing the tree and INDEX.md, print this message to the user:
 
 ```
 Questions ready for Phase {N}: {phase_name}
 
   Dashboard:  {phase_dir}/{padded_phase}-questions/INDEX.md
-  State:      {phase_dir}/{padded_phase}-QUESTIONS.json
+  Tree:       {phase_dir}/{padded_phase}-questions/
+    - INDEX.md — dashboard des questions actives
+    - INBOX.md — écrivez librement (texte, URLs, idées). Sauvegardez — le hook auto-refresh (si opt-in) détecte la modification.
+    - Q-XX.md — une question par fichier, répondez en cochant [x] ou en éditant la Discussion.
+    - blocked/ — questions bloquées sur des dépendances, remontées automatiquement dès que leurs deps sont résolues.
 
   {total} questions in the tree. {open} active in the current wave.
 
 Open INDEX.md in your editor to pick a question. Each question has its own .md
 file with a conversation thread. Tick one checkbox to finalize your answer.
+
+Pour déclencher un refresh :
+  - Automatique : activez `hooks.questions_autorefresh: true` dans `.planning/config.json`
+  - Manuel : tapez `refresh` dans la conversation avec Claude
 
 When ready, tell me:
   "refresh"                — scan the tree, reply to new comments, unlock deps
@@ -129,22 +137,54 @@ When ready, tell me:
 </step>
 
 <step name="wait_loop">
-Enter wait mode. Claude listens for user commands and handles each:
+Wait for one of these triggers:
+1. User types `refresh` in the conversation
+2. Hook `gsd-questions-refresh.js` injects `additionalContext: "{file} modified in {NN}-questions/ — refresh pending."` (D-04)
+3. Hook injects `additionalContext: "INBOX.md modified in {NN}-questions/ — process inbox content on next refresh."` (D-06)
+4. User types `done` / `finalize` to synthesize CONTEXT.md
 
----
+**On refresh trigger — execute in this order:**
 
-**"refresh"** (or "refresh Q-XX" to scope to a single question; also "process answers", "update", "re-read"):
+**Phase 1 — Process INBOX.md (D-06):**
+1. Check if `{phase_dir}/{padded_phase}-questions/INBOX.md` is non-empty (size > ~200 bytes, ignoring the instructive HTML comment).
+2. If non-empty:
+   - Read INBOX.md content.
+   - Extract new question candidates from the content (user prose, URLs, ideas).
+   - Archive: `mv INBOX.md INBOX-$(date -u +%Y%m%dT%H%M%SZ).md`
+   - Recreate empty INBOX.md with the instructive comment (same as generate_tree).
+   - For each extracted question: generate a new Q-XX.md with frontmatter (reuse generate_tree template) under the root or blocked/ per initial status.
+3. If empty: skip Phase 1.
 
-1. Determine scope: all active leaves, or the single specified question.
-2. For each in-scope leaf file `{id}.md`:
-   - Invoke the per-question workflow @$HOME/.claude/get-shit-done/workflows/discuss-question-markdown.md with node id + file path
-   - That sub-workflow handles: reading new `> User:` messages, replying inline, detecting checkbox locks, detecting `**Split:** yes N` markers, cascading state updates
-3. After all per-question invocations:
-   - Recompute stats in the JSON (answered / open / blocked / split)
-   - Re-evaluate the DAG: for every blocked node whose dependencies are now satisfied, re-check that its option space is still non-empty given the new locks; if an answer to a dependency invalidated options, regenerate those options and re-write the .md
-   - For every split parent whose children are ALL answered, resurrect the parent as a leaf with synthesized answer
-   - Rewrite INDEX.md
-4. Report to the user:
+**Phase 2 — Refresh modified questions:**
+For EACH `{padded_phase}-questions/*.md` (or `blocked/*.md`) that was modified since last refresh (or all active leaves if user typed `refresh` without hook signal), spawn a Task() **per Plan 05's contract**:
+
+```
+Task(
+  prompt="Read the question file at {absolute_file_path}.
+          Parse its YAML frontmatter (id, status, dependencies, answer, conversation_length).
+          Read the Discussion thread below the frontmatter.
+          Process new > User: messages, detect [x] checkbox locks, handle Split markers.
+          Write replies (> Claude: ...) and update frontmatter in-place.
+          Return: { id, newStatus, answerLocked, conversationAdded }",
+  subagent_type="general-purpose",
+  description="Refresh: {node_id}"
+)
+```
+
+All Task() calls spawn in parallel (nesting level 2 — safe per #686).
+
+**Phase 3 — Physical status moves (D-03):**
+After all Task() return, for each question whose status changed:
+- `leaf → blocked`: move file from root to `blocked/` subfolder.
+- `blocked → leaf`: move file from `blocked/` to root.
+- `* → answered` or `* → split`: stay in current location (no move required).
+
+Use actual `mv` (Bash) — do NOT write a new file and leave the old one behind.
+
+**Phase 4 — Rebuild INDEX.md:**
+Scan all `*.md` files in `{padded_phase}-questions/` and `blocked/`. Parse each file's frontmatter. Regenerate INDEX.md grouping by status. This is the only write to INDEX.md — do not persist JSON state.
+
+Report to the user:
 
 ```
 Refreshed.
@@ -156,16 +196,18 @@ Refreshed.
   INDEX.md updated: {phase_dir}/{padded_phase}-questions/INDEX.md
 ```
 
+Return to wait state.
+
 ---
 
 **"split Q-XX en N"** (or "break Q-XX into N", "decompose Q-XX"):
 
-1. Load node `Q-XX` from JSON
+1. Read `Q-XX.md` frontmatter to get current state
 2. Decompose its decision space into N (or as many as makes sense — N is a hint, not a hard cap) child sub-questions with coherent options each
 3. Compute pair-wise dependencies between the new children using the logical-independence rule
-4. Set `Q-XX.status = "split"`, `Q-XX.children = [child ids]`, remove its options
-5. Create the child .md files under `{padded_phase}-questions/Q-XX/`
-6. Rewrite INDEX.md (parent disappears, new children appear in Ready or Blocked)
+4. Set `Q-XX.status = "split"`, `Q-XX.children = [child ids]` in frontmatter, remove its options
+5. Create the child .md files under `{padded_phase}-questions/Q-XX/` with full frontmatter
+6. Rebuild INDEX.md (parent disappears, new children appear in Ready or Blocked)
 7. Report the split
 
 ---
@@ -178,7 +220,7 @@ Proceed to the **finalize** step.
 
 **"exit markdown mode"** (or "switch to interactive"):
 
-1. Load all currently answered questions from the JSON
+1. Scan all Q-XX.md frontmatters; collect questions with `status: answered`
 2. Feed them into the internal accumulator as if answered interactively
 3. Continue with the standard `discuss_areas` step from discuss-phase.md for any remaining unanswered questions
 4. Generate CONTEXT.md as normal
@@ -193,21 +235,27 @@ Reply helpfully, then remind the user of available commands:
 </step>
 
 <step name="finalize">
-Process all answered questions from the JSON state and generate CONTEXT.md.
+Process all answered questions from the frontmatter state and generate CONTEXT.md.
 
-1. Read `{phase_dir}/{padded_phase}-QUESTIONS.json`
-2. Walk the tree depth-first; collect nodes with `status: "answered"` whose parent is either null or also answered (synthesized)
-3. Format each as a decision entry:
-   - Decision: the selected option label (or custom text)
-   - Rationale: the option description plus any `> User:` context from the conversation thread
+1. Collect answered nodes by scanning all `{padded_phase}-questions/*.md` and `{padded_phase}-questions/blocked/*.md` files. For each file:
+   - Parse YAML frontmatter at top of file.
+   - If `status == 'answered'`: collect `id`, `title`, `answer`, and the Discussion body for CONTEXT.md synthesis.
+   - Skip files whose basename matches `INBOX.md` or `INBOX-*.md` (inbox is not a question).
+   - Skip INDEX.md (dashboard only).
+
+   The frontmatter is the single source of truth — there is NO JSON to read.
+
+2. Walk the collected answered nodes depth-first; format each as a decision entry:
+   - Decision: the selected option label (or custom text from `answer` field)
+   - Rationale: the option description plus any `> User:` context from the Discussion thread
    - Subtree: if this node was split and later synthesized, include a compact summary of its children's decisions
-4. Write CONTEXT.md using the standard context template:
+3. Write CONTEXT.md using the standard context template:
    - `<decisions>` section with all answered top-level questions
    - `<deferred_ideas>` section for any unanswered leaf
    - `<specifics>` section for nuance captured in conversation threads
    - `<code_context>` section with reusable assets found during analysis
    - `<canonical_refs>` section (MANDATORY — paths to relevant specs/docs)
-5. If fewer than 50% of leaves are answered, warn:
+4. If fewer than 50% of leaves are answered, warn:
 
 ```
 Warning: Only {answered}/{total} questions answered ({pct}%).
@@ -215,7 +263,7 @@ CONTEXT.md generated with available decisions. Unanswered leaves listed as defer
 Consider running /gsd-discuss-phase {N} --markdown again to refine before planning.
 ```
 
-6. Print completion:
+5. Print completion:
 
 ```
 CONTEXT.md written: {phase_dir}/{padded_phase}-CONTEXT.md
@@ -228,14 +276,14 @@ Next step: /gsd-plan-phase {N}
 </step>
 
 <success_criteria>
-- DAG of questions written to JSON with nodes, children, dependencies, and parent links
-- One .md file per leaf question, identically formatted at all depths (recursive tree)
-- INDEX.md shows only active leaves; split parents are hidden until synthesized
-- Siblings with no logical-independence violations appear as a parallel wave
-- Siblings with dependencies appear as Blocked until their predecessors lock
-- Checkbox-based finalization: exactly one `- [x]` ticks the answer; two ticks = ambiguous
-- Auto-split triggers on complex questions; on-demand split available via `split Q-XX en N`
-- Per-question conversation thread persists across refreshes
-- CONTEXT.md generated in the standard format from locked answers
+- One .md file per question with YAML frontmatter (id, title, status, parent, children, dependencies, answer, conversation_length) — frontmatter is the single source of truth
+- Questions with initial status `blocked` are written under `blocked/` subfolder (D-03)
+- INBOX.md always created at root of questions folder (D-06)
+- INDEX.md shows questions grouped by status, reading from frontmatters (not JSON)
+- No QUESTIONS.json file is generated or read at any point
+- On refresh: INBOX.md processed first (archive + extract questions), then Task() per question in parallel
+- Physical status moves: `mv` used for blocked ↔ leaf transitions (D-03)
+- INDEX.md rebuilt after every refresh from frontmatter scan (D-04)
+- CONTEXT.md generated from frontmatter scan of all Q-XX.md files (not from JSON)
 - `canonical_refs` section always present in CONTEXT.md (MANDATORY)
 </success_criteria>
