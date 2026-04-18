@@ -130,9 +130,11 @@ When the state is **leaf-locked**:
   - `status: answered`
 - Re-save the `.md` file.
 
-**DAG cascade (D-02):** For each question file in the same `{padded_phase}-questions/` folder (root AND `blocked/` subfolder), read its frontmatter. If its `dependencies` array contains the current question's `id` AND all other deps are satisfied (status == answered), update that dependent's frontmatter:
+**DAG cascade (D-02):** For each question file in the same questions folder (root AND `blocked/` subfolder), read its frontmatter. If its `dependencies` array contains the current question's `id` AND all other deps are satisfied (status == answered), update that dependent's frontmatter:
 - `status: leaf` (unblock)
-- Then the orchestrator (Plan 04 Phase 3) physically moves the file from `blocked/` to root.
+- Then the orchestrator physically moves the dependent from `blocked/` to root.
+
+The orchestrator also moves the now-answered question file to `answered/` subfolder.
 
 No JSON touched — every state change is in the frontmatter of the .md files.
 

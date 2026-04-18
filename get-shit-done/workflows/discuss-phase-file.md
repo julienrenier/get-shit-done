@@ -28,6 +28,8 @@ questions/
   Q-02.md
   blocked/
     Q-03.md
+  answered/
+    Q-04.md
 ```
 
 **Per-question template** (all levels — recursive):
@@ -125,8 +127,8 @@ Commands: "refresh" · "refresh Q-XX" · "split Q-XX en N" · "finalize" · "exi
 
 1. **INBOX** — if `INBOX.md` has content (> ~200 bytes ignoring the comment): read, extract questions as new Q-XX.md files, archive to `INBOX-{timestamp}.md`, recreate empty INBOX.md.
 2. **Questions** — for each in-scope leaf: invoke @$HOME/.claude/get-shit-done/workflows/discuss-question-markdown.md with node id + file path. After all return: re-evaluate DAG (unblock satisfied deps, regenerate invalidated options, resurrect fully-answered split parents).
-3. **Physical moves** — `mv` (not copy+delete): `leaf → blocked` → move to `blocked/`; `blocked → leaf` → move to root. `answered`/`split` stay in place.
-4. **INDEX** — rebuild from frontmatter scan of all `*.md` in `questions/` and `questions/blocked/`.
+3. **Physical moves** — `mv` (not copy+delete): `leaf → blocked` → move to `blocked/`; `blocked → leaf` → move to root; `* → answered` → move to `answered/`. `split` stays in place.
+4. **INDEX** — rebuild from frontmatter scan of all `*.md` in `questions/`, `questions/blocked/`, and `questions/answered/`.
 
 ```
 Refreshed.
@@ -160,7 +162,7 @@ Scan frontmatters; collect `status: answered` questions; feed into discuss-phase
 </step>
 
 <step name="finalize">
-1. Scan `questions/*.md` and `questions/blocked/*.md`. For each file: parse frontmatter; collect if `status == answered`. Skip `INBOX*.md` and `INDEX.md`.
+1. Scan `questions/answered/*.md` (primary) and `questions/*.md` (fallback for in-progress). For each file: parse frontmatter; collect if `status == answered`. Skip `INBOX*.md` and `INDEX.md`.
 2. Walk answered nodes depth-first. Per node: Decision = selected option label or custom text; Rationale = option description + `> User:` context; Subtree = children's decisions if split.
 3. Write `{phase_dir}/{padded_phase}-CONTEXT.md`:
    - `<decisions>` — answered top-level questions
@@ -183,7 +185,7 @@ Next: /gsd-plan-phase {N}
 - Each Q-XX.md has YAML frontmatter as single source of truth — no QUESTIONS.json
 - INBOX.md created at root; not overwritten on resume
 - INDEX.md rebuilt from frontmatter scan after every refresh
-- Physical `mv` for blocked ↔ leaf transitions
+- Physical `mv` for all transitions: blocked ↔ leaf, and answered → `answered/`
 - Auto-split on heuristics; on-demand split via "split Q-XX en N"
 - CONTEXT.md from frontmatter scan; `canonical_refs` section mandatory
 </success_criteria>

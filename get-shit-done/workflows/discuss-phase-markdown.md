@@ -39,6 +39,8 @@ Write the markdown question tree to `{phase_dir}/{padded_phase}-questions/` — 
   Q-02.md
   blocked/                    # questions with status: blocked (D-03)
     Q-03.md
+  answered/                   # questions with status: answered (moved after lock)
+    Q-04.md
 ```
 
 **Per-question .md template** (each `Q-XX.md` — D-02):
@@ -177,7 +179,8 @@ All Task() calls spawn in parallel (nesting level 2 — safe per #686).
 After all Task() return, for each question whose status changed:
 - `leaf → blocked`: move file from root to `blocked/` subfolder.
 - `blocked → leaf`: move file from `blocked/` to root.
-- `* → answered` or `* → split`: stay in current location (no move required).
+- `* → answered`: move file to `answered/` subfolder.
+- `* → split`: stay in current location (no move required).
 
 Use actual `mv` (Bash) — do NOT write a new file and leave the old one behind.
 
@@ -237,7 +240,7 @@ Reply helpfully, then remind the user of available commands:
 <step name="finalize">
 Process all answered questions from the frontmatter state and generate CONTEXT.md.
 
-1. Collect answered nodes by scanning all `{padded_phase}-questions/*.md` and `{padded_phase}-questions/blocked/*.md` files. For each file:
+1. Collect answered nodes by scanning `{padded_phase}-questions/answered/*.md` (primary) and `{padded_phase}-questions/*.md` (fallback for in-progress). For each file:
    - Parse YAML frontmatter at top of file.
    - If `status == 'answered'`: collect `id`, `title`, `answer`, and the Discussion body for CONTEXT.md synthesis.
    - Skip files whose basename matches `INBOX.md` or `INBOX-*.md` (inbox is not a question).
@@ -282,8 +285,8 @@ Next step: /gsd-plan-phase {N}
 - INDEX.md shows questions grouped by status, reading from frontmatters (not JSON)
 - No QUESTIONS.json file is generated or read at any point
 - On refresh: INBOX.md processed first (archive + extract questions), then Task() per question in parallel
-- Physical status moves: `mv` used for blocked ↔ leaf transitions (D-03)
+- Physical status moves: `mv` for blocked ↔ leaf transitions and answered → `answered/` subfolder
 - INDEX.md rebuilt after every refresh from frontmatter scan (D-04)
-- CONTEXT.md generated from frontmatter scan of all Q-XX.md files (not from JSON)
+- CONTEXT.md generated from frontmatter scan of `answered/` subfolder (not from JSON)
 - `canonical_refs` section always present in CONTEXT.md (MANDATORY)
 </success_criteria>
