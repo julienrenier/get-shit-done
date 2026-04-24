@@ -1,0 +1,59 @@
+{
+  "phase": "{padded_phase}-{phase_slug}",
+  "generated_at": "ISO-8601 timestamp",
+  "stats": {
+    "total": 0,
+    "answered": 0,
+    "remaining": 0,
+    "required_unanswered": 0
+  },
+  "sections": [
+    {
+      "id": "section-slug",
+      "title": "Section Title",
+      "questions": [
+        {
+          "id": "Q-01",
+          "title": "Short question title",
+          "context": "Exhaustive codebase info, prior decisions, refs ADR/spec, or constraints relevant to this question. Per D-NEW-19 this field is exhaustive — all harvested context is surfaced, not filtered.",
+          "options": [
+            { "id": "a", "label": "Option label", "description": "Tradeoff or elaboration for this option" },
+            { "id": "b", "label": "Alternative label", "description": "Tradeoff for alternative" }
+          ],
+          "criticality": "required",
+          "follow_up": null,
+          "answer": null,
+          "status": "unanswered"
+        },
+        {
+          "id": "Q-02",
+          "title": "Example of question with conditional follow-up",
+          "context": "This question demonstrates the follow_up shape: when answer === follow_up.trigger, the nested question MUST be appended to this section's questions[] on refresh (D-08, D-NEW-18).",
+          "options": [
+            { "id": "a", "label": "Simple path", "description": "No follow-up needed" },
+            { "id": "b", "label": "Complex path", "description": "Triggers Q-02-FU for clarification" }
+          ],
+          "criticality": "required",
+          "follow_up": {
+            "trigger": "b",
+            "question": {
+              "id": "Q-02-FU",
+              "title": "Clarification question appended when Q-02 answer is 'b'",
+              "context": "Exhaustive context for the follow-up — same rules as parent.",
+              "options": [
+                { "id": "a", "label": "First refinement", "description": "" },
+                { "id": "b", "label": "Second refinement", "description": "" }
+              ],
+              "criticality": "required",
+              "follow_up": null,
+              "answer": null,
+              "status": "unanswered"
+            }
+          },
+          "answer": null,
+          "status": "unanswered"
+        }
+      ]
+    }
+  ]
+}
