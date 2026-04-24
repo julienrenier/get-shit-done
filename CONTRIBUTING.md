@@ -304,7 +304,6 @@ Reviewers do not rely solely on CI to verify correctness. Before approving a PR,
 ## Code Style
 
 - **CommonJS** (`.cjs`) — the project uses `require()`, not ESM `import`
-- **No external dependencies in core** — `gsd-tools.cjs` and all lib files use only Node.js built-ins
 - **Conventional commits** — `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `ci:`
 
 ## File Structure
