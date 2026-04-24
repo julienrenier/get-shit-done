@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GSD ► Discuss Phase — Playground</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #141820;
+    --panel2: #1b2029;
+    --border: #262d38;
+    --fg: #e6ebf2;
+    --muted: #8892a6;
+    --accent: #7aa2f7;
+    --ok: #9ece6a;
+    --warn: #e0af68;
+    --bad: #f7768e;
+    --code: #c0caf5;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --xs: 4px;
+    --sm: 8px;
+    --md: 16px;
+    --lg: 24px;
+    --xl: 32px;
+    --2xl: 48px;
+    --3xl: 64px;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--fg); margin: 0; font: 14px/1.55 var(--sans); }
+  code, pre, .mono { font-family: var(--mono); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+  }
+
+  /* Header */
+  header { padding: var(--3xl) var(--xl) var(--md); }
+  header h1 { font-size: 18px; font-weight: 600; margin: 0 0 var(--xs); line-height: 1.2; }
+  header .meta { font-size: 12px; font-weight: 400; color: var(--muted); margin: 0; }
+
+  /* Preset row */
+  .preset-row { display: flex; flex-wrap: wrap; gap: var(--sm); padding: var(--md) var(--xl); }
+  .preset {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--fg);
+    border-radius: 6px; padding: var(--sm) var(--md); font-size: 13px; cursor: pointer;
+    min-height: 32px; font-family: var(--sans); transition: border-color .15s;
+  }
+  .preset:hover { border-color: var(--accent); filter: brightness(1.05); }
+  .preset:active { filter: brightness(0.95); }
+  .preset.active { background: var(--accent); color: #0b0d10; font-weight: 600; border-color: var(--accent); }
+
+  /* Timeline */
+  .timeline-wrap { padding: 0 var(--xl); }
+  svg.timeline { display: block; width: 100%; height: 140px; overflow: visible; }
+  .step-node { cursor: pointer; }
+  .step-node:hover circle { stroke: var(--accent); }
+
+  /* Detail grid */
+  .detail-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: var(--lg);
+    padding: var(--2xl) var(--xl) 180px;
+  }
+  @media (max-width: 959px) { .detail-grid { grid-template-columns: 1fr; } }
+  @media (min-width: 1440px) { .detail-grid { max-width: 1280px; margin: 0 auto; } }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: var(--md) var(--lg); }
+  .card h2 { font-size: 16px; font-weight: 600; margin: 0 0 var(--sm); display: flex; align-items: center; gap: var(--sm); flex-wrap: wrap; }
+  .step-id {
+    font-family: var(--mono); font-size: 13px; color: var(--muted); background: var(--panel2);
+    border-radius: 6px; padding: 2px var(--sm); display: inline-block;
+  }
+  .card p { font-size: 14px; line-height: 1.55; color: var(--fg); margin: 0 0 var(--sm); }
+  .claude-action {
+    font-family: var(--mono); font-size: 13px; color: var(--muted);
+    padding-left: var(--sm); margin-top: var(--sm);
+    border-left: 2px solid var(--border);
+  }
+
+  /* Artifact right panel */
+  .artifact-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--sm); }
+  .filename-chip {
+    font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--code);
+    background: var(--panel2); padding: 2px var(--sm); border-radius: 6px;
+  }
+  .toggle-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 6px; padding: 2px var(--sm); font-size: 12px; cursor: pointer;
+    font-family: var(--sans); transition: border-color .15s;
+  }
+  .toggle-btn:hover { border-color: var(--accent); color: var(--fg); }
+  pre.artifact-snippet {
+    background: #0e1116; color: var(--code); border-radius: 6px; padding: var(--md);
+    font-family: var(--mono); font-size: 12px; margin: 0; overflow-x: auto;
+    white-space: pre-wrap; max-height: 240px;
+  }
+  pre.artifact-full { display: none; max-height: 60vh; overflow: auto; background: #0e1116; color: var(--code); border-radius: 6px; padding: var(--md); font-family: var(--mono); font-size: 12px; margin: 0; white-space: pre-wrap; }
+  .empty-state { font-style: italic; color: var(--muted); text-align: center; padding: var(--lg) 0; }
+  .empty-state strong { display: block; font-style: normal; font-size: 14px; color: var(--muted); margin-bottom: var(--xs); }
+
+  /* Prompt box (fixed bottom) */
+  .promptbox {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--panel); border-top: 1px solid var(--border); padding: 14px 24px;
+  }
+  .promptbox textarea {
+    width: 100%; min-height: 80px; background: #0e1116; color: var(--code);
+    border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px;
+    font-family: var(--mono); font-size: 12.5px; resize: vertical;
+  }
+  .promptbox .controls {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: var(--sm); gap: var(--md);
+  }
+  .promptbox .controls button {
+    background: var(--accent); color: #0b0d10; border: none; border-radius: 6px;
+    padding: 8px 16px; font-size: 12.5px; font-weight: 600; cursor: pointer; min-height: 40px;
+    font-family: var(--sans);
+  }
+  .promptbox .controls button:hover { filter: brightness(1.1); }
+  .promptbox .controls button:active { filter: brightness(0.95); }
+  .promptbox .status { color: var(--muted); font-size: 12px; }
+  .copied { color: var(--ok) !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>GSD ► Discuss Phase — Playground</h1>
+  <p class="meta">Phase 3 · Visualise les 8 étapes + les artefacts produits · Choisis un preset ou explore librement</p>
+</header>
+
+<nav class="preset-row" role="radiogroup" aria-label="Presets de mode">
+  <button class="preset active" role="radio" aria-checked="true"
+          data-preset="default" data-flag=""
+          aria-label="Preset Default flow. sélectionné. Entrée pour activer.">
+    Default flow
+  </button>
+  <button class="preset" role="radio" aria-checked="false"
+          data-preset="auto" data-flag="--auto"
+          aria-label="Preset Auto. non sélectionné. Entrée pour activer.">
+    Auto (⚡ skip questions)
+  </button>
+  <button class="preset" role="radio" aria-checked="false"
+          data-preset="advisor" data-flag="--advisor"
+          aria-label="Preset Advisor. non sélectionné. Entrée pour activer.">
+    Advisor (◆ deep research)
+  </button>
+  <button class="preset" role="radio" aria-checked="false"
+          data-preset="pro" data-flag="--pro"
+          aria-label="Preset Pro. non sélectionné. Entrée pour activer.">
+    Pro (progressive questions)
+  </button>
+</nav>
+
+<section class="timeline-wrap">
+  <svg class="timeline" viewBox="0 0 800 140" role="tablist" aria-label="Timeline discuss-phase">
+    <!-- Baseline connector -->
+    <line x1="60" y1="70" x2="740" y2="70" stroke="var(--border)" stroke-width="2"/>
+
+    <!-- Step 1: initialize -->
+    <g class="step-node" data-step-id="initialize" data-step-ord="1"
+       role="tab" aria-selected="false" tabindex="0" transform="translate(60,70)">
+      <title>Étape 1 sur 8 : initialize. En attente. Entrée pour voir le détail.</title>
+      <rect x="-22" y="-22" width="44" height="44" fill="transparent"/>
+      <circle r="12" fill="var(--panel2)" stroke="var(--border)" stroke-width="1.5"/>
+      <text x="0" y="-20" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)">○</text>
+      <text x="0" y="32" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)"><tspan>1. </tspan><tspan>initialize</tspan></text>
+    </g>
+
+    <!-- Step 2: check_spec -->
+    <g class="step-node" data-step-id="check_spec" data-step-ord="2"
+       role="tab" aria-selected="false" tabindex="0" transform="translate(157,70)">
+      <title>Étape 2 sur 8 : check_spec. En attente. Entrée pour voir le détail.</title>
+      <rect x="-22" y="-22" width="44" height="44" fill="transparent"/>
+      <circle r="12" fill="var(--panel2)" stroke="var(--border)" stroke-width="1.5"/>
+      <text x="0" y="-20" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)">○</text>
+      <text x="0" y="32" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)"><tspan>2. </tspan><tspan>check_spec</tspan></text>
+    </g>
+
+    <!-- Step 3: load_prior_context -->
+    <g class="step-node" data-step-id="load_prior_context" data-step-ord="3"
+       role="tab" aria-selected="false" tabindex="0" transform="translate(254,70)">
+      <title>Étape 3 sur 8 : load_prior_context. En attente. Entrée pour voir le détail.</title>
+      <rect x="-22" y="-22" width="44" height="44" fill="transparent"/>
+      <circle r="12" fill="var(--panel2)" stroke="var(--border)" stroke-width="1.5"/>
+      <text x="0" y="-20" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)">○</text>
+      <text x="0" y="32" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)"><tspan>3. </tspan><tspan>load_prior</tspan></text>
+    </g>
+
+    <!-- Step 4: scout_codebase -->
+    <g class="step-node" data-step-id="scout_codebase" data-step-ord="4"
+       role="tab" aria-selected="false" tabindex="0" transform="translate(351,70)">
+      <title>Étape 4 sur 8 : scout_codebase. En attente. Entrée pour voir le détail.</title>
+      <rect x="-22" y="-22" width="44" height="44" fill="transparent"/>
+      <circle r="12" fill="var(--panel2)" stroke="var(--border)" stroke-width="1.5"/>
+      <text x="0" y="-20" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)">○</text>
+      <text x="0" y="32" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)"><tspan>4. </tspan><tspan>scout_code</tspan></text>
+    </g>
+
+    <!-- Step 5: analyze_phase -->
+    <g class="step-node" data-step-id="analyze_phase" data-step-ord="5"
+       role="tab" aria-selected="false" tabindex="0" transform="translate(448,70)">
+      <title>Étape 5 sur 8 : analyze_phase. En attente. Entrée pour voir le détail.</title>
+      <rect x="-22" y="-22" width="44" height="44" fill="transparent"/>
+      <circle r="12" fill="var(--panel2)" stroke="var(--border)" stroke-width="1.5"/>
+      <text x="0" y="-20" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)">○</text>
+      <text x="0" y="32" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)"><tspan>5. </tspan><tspan>analyze</tspan></text>
+    </g>
+
+    <!-- Step 6: present_gray_areas -->
+    <g class="step-node" data-step-id="present_gray_areas" data-step-ord="6"
+       role="tab" aria-selected="false" tabindex="0" transform="translate(545,70)">
+      <title>Étape 6 sur 8 : present_gray_areas. En attente. Entrée pour voir le détail.</title>
+      <rect x="-22" y="-22" width="44" height="44" fill="transparent"/>
+      <circle r="12" fill="var(--panel2)" stroke="var(--border)" stroke-width="1.5"/>
+      <text x="0" y="-20" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)">○</text>
+      <text x="0" y="32" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)"><tspan>6. </tspan><tspan>gray_areas</tspan></text>
+    </g>
+
+    <!-- Step 7: discuss_areas -->
+    <g class="step-node" data-step-id="discuss_areas" data-step-ord="7"
+       role="tab" aria-selected="false" tabindex="0" transform="translate(642,70)">
+      <title>Étape 7 sur 8 : discuss_areas. En attente. Entrée pour voir le détail.</title>
+      <rect x="-22" y="-22" width="44" height="44" fill="transparent"/>
+      <circle r="12" fill="var(--panel2)" stroke="var(--border)" stroke-width="1.5"/>
+      <text x="0" y="-20" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)">○</text>
+      <text x="0" y="32" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)"><tspan>7. </tspan><tspan>discuss</tspan></text>
+    </g>
+
+    <!-- Step 8: write_context -->
+    <g class="step-node" data-step-id="write_context" data-step-ord="8"
+       role="tab" aria-selected="false" tabindex="0" transform="translate(739,70)">
+      <title>Étape 8 sur 8 : write_context. En attente. Entrée pour voir le détail.</title>
+      <rect x="-22" y="-22" width="44" height="44" fill="transparent"/>
+      <circle r="12" fill="var(--panel2)" stroke="var(--border)" stroke-width="1.5"/>
+      <text x="0" y="-20" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)">○</text>
+      <text x="0" y="32" text-anchor="middle" font-family="var(--mono)" font-size="12" fill="var(--muted)"><tspan>8. </tspan><tspan>write_ctx</tspan></text>
+    </g>
+  </svg>
+</section>
+
+<section class="detail-grid">
+  <!-- Left panel: step definition -->
+  <article class="card" id="panel-step" role="tabpanel" aria-labelledby="panel-step-title">
+    <h2 id="panel-step-title">
+      <span>1. Initialisation</span>
+      <span class="step-id">initialize</span>
+    </h2>
+    <p>Claude charge le contexte de la session en cours : numéro de phase, flags passés en argument, et fichiers de configuration GSD. Cette étape établit les variables d'environnement internes nécessaires aux étapes suivantes.</p>
+    <p>Aucun fichier n'est écrit — c'est une étape de préparation interne.</p>
+    <div class="claude-action">
+      <span aria-hidden="true">▸ </span>Lit <code>config.json</code>, résout le numéro de phase et les flags actifs.
+    </div>
+  </article>
+
+  <!-- Right panel: artifact mockup -->
+  <article class="card" id="panel-artifact" role="tabpanel" aria-labelledby="panel-artifact-title">
+    <div class="empty-state">
+      <strong>Cette étape ne produit pas d'artefact</strong>
+      Claude lit ou met à jour l'état interne. Aucun fichier n'est écrit.
+    </div>
+  </article>
+</section>
+
+<!-- Hidden data payload: 8-step definitions + artifact mockups -->
+<script type="application/json" id="steps-data">
+[
+  {
+    "id": "initialize",
+    "ord": 1,
+    "label_fr": "Initialisation",
+    "definition_fr": "Claude charge le contexte de la session en cours : numéro de phase, flags passés en argument, et fichiers de configuration GSD. Cette étape établit les variables d'environnement internes nécessaires aux étapes suivantes. Aucun fichier n'est écrit — c'est une étape de préparation interne.",
+    "claude_action_fr": "Lit config.json, résout le numéro de phase et les flags actifs.",
+    "artifact_filename": null,
+    "snippet": "Cette étape ne produit pas d'artefact",
+    "full_mockup": "Cette étape ne produit pas d'artefact"
+  },
+  {
+    "id": "check_spec",
+    "ord": 2,
+    "label_fr": "Vérification SPEC",
+    "definition_fr": "Claude vérifie si un fichier SPEC.md existe pour cette phase. S'il est présent, les exigences sont considérées comme verrouillées et le mode de discussion s'adapte en conséquence. Cette étape est non-destructive et ne génère aucun fichier.",
+    "claude_action_fr": "Cherche {padded}-SPEC.md. Si trouvé, active spec_loaded=true pour la suite du workflow.",
+    "artifact_filename": null,
+    "snippet": "Cette étape ne produit pas d'artefact",
+    "full_mockup": "Cette étape ne produit pas d'artefact"
+  },
+  {
+    "id": "load_prior_context",
+    "ord": 3,
+    "label_fr": "Contexte antérieur",
+    "definition_fr": "Claude charge le fichier CONTEXT.md de la phase s'il existe déjà (exécution de discuss-phase en mode reprise). Cela permet de repartir des décisions déjà prises lors d'une session précédente. Aucun fichier n'est écrit à cette étape.",
+    "claude_action_fr": "Lit {padded}-CONTEXT.md si présent. Extrait decisions[] et canonical_refs[] pour la session.",
+    "artifact_filename": null,
+    "snippet": "Cette étape ne produit pas d'artefact",
+    "full_mockup": "Cette étape ne produit pas d'artefact"
+  },
+  {
+    "id": "scout_codebase",
+    "ord": 4,
+    "label_fr": "Scan du code",
+    "definition_fr": "Claude lit les fichiers d'architecture et de conventions du projet pour comprendre les patterns existants. Cette étape alimente l'analyse de la phase suivante. Elle lit uniquement, sans écrire de fichier.",
+    "claude_action_fr": "Lit .planning/codebase/*.md (STRUCTURE, CONVENTIONS, CONCERNS, ARCHITECTURE selon pertinence).",
+    "artifact_filename": null,
+    "snippet": "Cette étape ne produit pas d'artefact",
+    "full_mockup": "Cette étape ne produit pas d'artefact"
+  },
+  {
+    "id": "analyze_phase",
+    "ord": 5,
+    "label_fr": "Analyse de phase",
+    "definition_fr": "Claude identifie les zones grises de la phase — les décisions d'implémentation qui nécessitent validation utilisateur avant la planification. Le résultat est une liste interne de zones grises ordonnées par priorité. Aucun fichier n'est écrit à cette étape.",
+    "claude_action_fr": "Produit une liste ordonnée de gray areas internes. Sert d'input à present_gray_areas.",
+    "artifact_filename": null,
+    "snippet": "Cette étape ne produit pas d'artefact",
+    "full_mockup": "Cette étape ne produit pas d'artefact"
+  },
+  {
+    "id": "present_gray_areas",
+    "ord": 6,
+    "label_fr": "Zones grises",
+    "definition_fr": "Claude présente les zones grises identifiées à l'utilisateur, une par une, et commence à collecter les réponses. Un fichier checkpoint JSON est sauvegardé de façon incrémentale après chaque réponse. Ce checkpoint permet de reprendre la discussion si elle est interrompue.",
+    "claude_action_fr": "Pose les questions GA une par une. Écrit {padded}-DISCUSS-CHECKPOINT.json après chaque réponse.",
+    "artifact_filename": "{padded}-DISCUSS-CHECKPOINT.json",
+    "snippet": "{\n  \"phase\": \"{PHASE_NUM}\",\n  \"phase_name\": \"{phase_name}\",\n  \"timestamp\": \"{ISO timestamp}\",\n  \"areas_completed\": [\"Area 1\"],\n  \"areas_remaining\": [\"Area 2\", \"Area 3\"],\n  \"decisions\": {\n    \"Area 1\": [\n      {\"question\": \"...\", \"answer\": \"...\", \"options_presented\": [\"...\"]}\n    ]\n  },\n  …",
+    "full_mockup": "{\n  \"phase\": \"{PHASE_NUM}\",\n  \"phase_name\": \"{phase_name}\",\n  \"timestamp\": \"{ISO timestamp}\",\n  \"areas_completed\": [\"Area 1\", \"Area 2\"],\n  \"areas_remaining\": [\"Area 3\", \"Area 4\"],\n  \"decisions\": {\n    \"Area 1\": [\n      {\"question\": \"Quelle approche choisir ?\", \"answer\": \"Approche B\", \"options_presented\": [\"Approche A\", \"Approche B\", \"Approche C\"]},\n      {\"question\": \"Précision supplémentaire ?\", \"answer\": \"Oui, avec fallback.\", \"options_presented\": []}\n    ],\n    \"Area 2\": [\n      {\"question\": \"Librairie ou custom ?\", \"answer\": \"Custom inline\", \"options_presented\": [\"librairie X\", \"custom inline\"]}\n    ]\n  },\n  \"deferred_ideas\": [\"Extension aux autres commandes\"],\n  \"canonical_refs\": [\"get-shit-done/workflows/discuss-phase.md\"]\n}"
+  },
+  {
+    "id": "discuss_areas",
+    "ord": 7,
+    "label_fr": "Discussion",
+    "definition_fr": "Claude continue la discussion des zones grises restantes et finalise le checkpoint. En mode --pro, des questions de validation croisée sont générées et sauvegardées dans {padded}-PRO-QUESTIONS.json. Le checkpoint est mis à jour après chaque échange.",
+    "claude_action_fr": "Finalise {padded}-DISCUSS-CHECKPOINT.json. En mode --pro, génère aussi {padded}-PRO-QUESTIONS.json.",
+    "artifact_filename": "{padded}-DISCUSS-CHECKPOINT.json",
+    "snippet": "{\n  \"phase\": \"{PHASE_NUM}\",\n  \"phase_name\": \"{phase_name}\",\n  \"timestamp\": \"{ISO timestamp}\",\n  \"areas_completed\": [\"Area 1\", \"Area 2\", \"Area 3\"],\n  \"areas_remaining\": [],\n  \"decisions\": {\n    \"Area 1\": [{\"question\": \"...\", \"answer\": \"...\"}],\n    \"Area 2\": [{\"question\": \"...\", \"answer\": \"...\"}],\n    \"Area 3\": [{\"question\": \"...\", \"answer\": \"...\"}]\n  },\n  …",
+    "full_mockup": "{\n  \"phase\": \"{PHASE_NUM}\",\n  \"phase_name\": \"{phase_name}\",\n  \"timestamp\": \"{ISO timestamp}\",\n  \"areas_completed\": [\"Area 1\", \"Area 2\", \"Area 3\", \"Area 4\"],\n  \"areas_remaining\": [],\n  \"decisions\": {\n    \"Area 1\": [\n      {\"question\": \"Quelle approche ?\", \"answer\": \"B\", \"options_presented\": [\"A\", \"B\", \"C\"]}\n    ],\n    \"Area 2\": [\n      {\"question\": \"Custom ou lib ?\", \"answer\": \"Custom\", \"options_presented\": [\"lib X\", \"custom\"]}\n    ],\n    \"Area 3\": [\n      {\"question\": \"Persistance ?\", \"answer\": \"SQLite\", \"options_presented\": [\"SQLite\", \"JSON file\"]}\n    ],\n    \"Area 4\": [\n      {\"question\": \"Tests ?\", \"answer\": \"node:test\", \"options_presented\": [\"jest\", \"node:test\", \"vitest\"]}\n    ]\n  },\n  \"deferred_ideas\": [\"Extension Phase 4\", \"Multi-lingual UI\"],\n  \"canonical_refs\": [\"get-shit-done/workflows/discuss-phase.md\", \".planning/codebase/CONVENTIONS.md\"]\n}"
+  },
+  {
+    "id": "write_context",
+    "ord": 8,
+    "label_fr": "Rédaction du contexte",
+    "definition_fr": "Claude synthétise toutes les décisions de la discussion et rédige le fichier {padded}-CONTEXT.md final. Un journal de discussion complet est également sauvegardé dans {padded}-DISCUSSION-LOG.md pour l'audit. Ces deux fichiers sont le livrable principal de discuss-phase.",
+    "claude_action_fr": "Écrit {padded}-CONTEXT.md (lu par les agents downstream) + {padded}-DISCUSSION-LOG.md (audit trail).",
+    "artifact_filename": "{padded}-CONTEXT.md",
+    "snippet": "# Phase [X]: [Name] - Context\n\n**Gathered:** [date]\n**Status:** Ready for planning\n\n<domain>\n## Phase Boundary\n\n[Scope anchor — ce que cette phase livre]\n\n</domain>\n\n<decisions>\n## Implementation Decisions\n\n### [Catégorie 1]\n- **D-01:** [Décision capturée]\n  …",
+    "full_mockup": "# Phase [X]: [Name] - Context\n\n**Gathered:** [date]\n**Status:** Ready for planning\n\n<domain>\n## Phase Boundary\n\n[Énoncé clair du périmètre de livraison de la phase]\n\n</domain>\n\n<decisions>\n## Implementation Decisions\n\n### [Catégorie 1 discutée]\n- **D-01:** [Décision ou préférence capturée]\n- **D-02:** [Autre décision si applicable]\n\n### [Catégorie 2 discutée]\n- **D-03:** [Décision capturée]\n\n### Claude's Discretion\n[Zones où l'utilisateur a dit \"tu décides\" — Claude a de la flexibilité ici]\n\n</decisions>\n\n<canonical_refs>\n## Canonical References\n\n### [Domaine 1]\n- `path/to/doc.md` — [Ce qu'il définit]\n\n</canonical_refs>\n\n<code_context>\n## Existing Code Insights\n\n### Reusable Assets\n- [Composant/hook/utilitaire] : [Comment l'utiliser dans cette phase]\n\n</code_context>\n\n<specifics>\n## Specific Ideas\n\n[Références particulières ou exemples issus de la discussion]\n\n</specifics>\n\n<deferred>\n## Deferred Ideas\n\n[Idées appartenant à d'autres phases]\n\n</deferred>\n\n---\n\n*Phase: [X]-[Name]*\n*Context gathered: [date]*"
+  }
+]
+</script>
+
+<div class="promptbox">
+  <textarea id="promptOut" readonly aria-label="Invocation CLI générée">/gsd-discuss-phase 1</textarea>
+  <div class="controls">
+    <span class="status" id="status" aria-live="polite">Choisis un preset ou clique une étape pour générer ta commande.</span>
+    <button id="copyBtn" type="button">Copier l'invocation CLI</button>
+  </div>
+</div>
+
+<script>/* Interactive state machine is installed by Plan 02 (03-02-PLAN.md). */</script>
+</body>
+</html>
