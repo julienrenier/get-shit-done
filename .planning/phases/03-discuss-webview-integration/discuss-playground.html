@@ -358,6 +358,331 @@
   </div>
 </div>
 
-<script>/* Interactive state machine is installed by Plan 02 (03-02-PLAN.md). */</script>
+<script>
+(function () {
+  'use strict';
+
+  /* 1. Load steps dataset */
+  const STEPS = JSON.parse(document.getElementById('steps-data').textContent);
+  if (STEPS.length !== 8) throw new Error('steps-data payload malformed');
+  const STEPS_BY_ID = Object.fromEntries(STEPS.map(function (s) { return [s.id, s]; }));
+
+  /* 2. Copy maps */
+  const STATUS_COPY = {
+    idle:   'Choisis un preset ou clique une étape pour générer ta commande.',
+    ready:  'Prêt — ajuste ou copie.',
+    copied: '✓ Copié dans le presse-papiers',
+    error:  '✗ Sélectionne le texte manuellement.'
+  };
+
+  const TOGGLE_COPY = {
+    collapsed: 'Voir le mockup complet ▾',
+    expanded:  'Réduire au snippet ▴'
+  };
+
+  /* 3. State */
+  const state = {
+    preset: 'default',
+    activeStepId: null,
+    artifactExpanded: false,
+    copyStatus: 'idle',
+    phaseNumber: 1
+  };
+
+  /* 4. Expose for tests (Plan 04 reads, never writes) */
+  window.__GSD_PLAYGROUND_STATE__ = state;
+
+  /* 5. Pure CLI builder */
+  function buildCommand(st) {
+    return '/gsd-discuss-phase ' + st.phaseNumber + (st.preset !== 'default' ? ' --' + st.preset : '');
+  }
+  window.__GSD_PLAYGROUND_BUILD_COMMAND__ = buildCommand;
+
+  /* 6. Render functions */
+  function renderPresetBar() {
+    var buttons = document.querySelectorAll('.preset-row .preset');
+    buttons.forEach(function (btn, i) {
+      var isActive = btn.dataset.preset === state.preset;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-checked', String(isActive));
+      btn.tabIndex = isActive ? 0 : -1;
+    });
+  }
+
+  function renderTimeline() {
+    var nodes = document.querySelectorAll('svg.timeline .step-node');
+    var anyPreset = state.preset !== 'default';
+    nodes.forEach(function (g) {
+      var isActive = g.dataset.stepId === state.activeStepId;
+      g.classList.toggle('active', isActive);
+      g.setAttribute('aria-selected', String(isActive));
+      var circle = g.querySelector('circle');
+      var glyph  = g.querySelector('text:first-of-type');
+      if (isActive) {
+        circle.setAttribute('fill', 'var(--accent)');
+        circle.setAttribute('stroke', 'var(--accent)');
+        circle.setAttribute('stroke-width', '2');
+        if (glyph) { glyph.textContent = '◆'; glyph.setAttribute('fill', 'var(--accent)'); }
+      } else {
+        circle.setAttribute('fill', 'var(--panel2)');
+        circle.setAttribute('stroke', 'var(--border)');
+        circle.setAttribute('stroke-width', '1.5');
+        if (glyph) { glyph.textContent = '○'; glyph.setAttribute('fill', 'var(--muted)'); }
+      }
+      /* MVP: for Phase 3 scope no preset skips any of the 8 steps, so all nodes stay in path */
+      g.dataset.inPath = anyPreset ? 'true' : 'false';
+      /* prefers-reduced-motion path animation skipped — CSS media query handles transition-duration:0ms */
+    });
+  }
+
+  function renderDetailPanel() {
+    var stepId = state.activeStepId;
+    /* default to step 1 when nothing selected */
+    var step = stepId ? STEPS_BY_ID[stepId] : STEPS[0];
+    if (!step) return;
+
+    /* Left panel */
+    var titleSpan = document.querySelector('#panel-step-title span:first-child');
+    if (titleSpan) titleSpan.textContent = step.ord + '. ' + step.label_fr;
+
+    var chip = document.querySelector('#panel-step .step-id');
+    if (chip) chip.textContent = step.id;
+
+    var bodyPs = document.querySelectorAll('#panel-step p');
+    if (bodyPs.length > 0) bodyPs[0].textContent = step.definition_fr;
+    if (bodyPs.length > 1) bodyPs[1].textContent = '';
+
+    var claudeDiv = document.querySelector('#panel-step .claude-action');
+    if (claudeDiv) claudeDiv.textContent = '▸ ' + step.claude_action_fr;
+
+    /* Right panel */
+    var artifactPanel = document.getElementById('panel-artifact');
+    var toggleBtn = artifactPanel.querySelector('.toggle-btn');
+    var snippetEl  = artifactPanel.querySelector('#artifact-snippet-view');
+    var fullEl     = artifactPanel.querySelector('#artifact-full-view');
+    var emptyEl    = artifactPanel.querySelector('.empty-state');
+    var headerEl   = artifactPanel.querySelector('.artifact-header');
+    var filenameEl = artifactPanel.querySelector('.filename-chip');
+
+    if (step.artifact_filename === null) {
+      /* No artifact */
+      if (toggleBtn)  toggleBtn.style.display = 'none';
+      if (headerEl)   headerEl.style.display  = 'none';
+      if (snippetEl)  snippetEl.style.display = 'none';
+      if (fullEl)     fullEl.style.display    = 'none';
+      if (!emptyEl) {
+        var div = document.createElement('div');
+        div.className = 'empty-state';
+        var strong = document.createElement('strong');
+        strong.textContent = 'Cette étape ne produit pas d\'artefact';
+        div.appendChild(strong);
+        div.appendChild(document.createTextNode('Claude lit ou met à jour l\'état interne. Aucun fichier n\'est écrit.'));
+        artifactPanel.appendChild(div);
+      } else {
+        emptyEl.style.display = '';
+      }
+    } else {
+      /* Has artifact */
+      if (emptyEl) emptyEl.style.display = 'none';
+
+      /* Ensure header exists */
+      if (!headerEl) {
+        headerEl = document.createElement('div');
+        headerEl.className = 'artifact-header';
+        filenameEl = document.createElement('span');
+        filenameEl.className = 'filename-chip';
+        toggleBtn = document.createElement('button');
+        toggleBtn.className = 'toggle-btn';
+        toggleBtn.type = 'button';
+        headerEl.appendChild(filenameEl);
+        headerEl.appendChild(toggleBtn);
+        artifactPanel.insertBefore(headerEl, artifactPanel.firstChild);
+      }
+      headerEl.style.display = '';
+      if (filenameEl) filenameEl.textContent = step.artifact_filename;
+      if (toggleBtn)  toggleBtn.style.display = '';
+
+      /* Ensure pre elements exist */
+      if (!snippetEl) {
+        snippetEl = document.createElement('pre');
+        snippetEl.id = 'artifact-snippet-view';
+        snippetEl.className = 'artifact-snippet';
+        artifactPanel.appendChild(snippetEl);
+      }
+      if (!fullEl) {
+        fullEl = document.createElement('pre');
+        fullEl.id = 'artifact-full-view';
+        fullEl.className = 'artifact-full';
+        artifactPanel.appendChild(fullEl);
+      }
+
+      snippetEl.textContent = step.snippet;
+      fullEl.textContent    = step.full_mockup;
+
+      if (state.artifactExpanded) {
+        snippetEl.style.display = 'none';
+        fullEl.style.display    = 'block';
+        if (toggleBtn) {
+          toggleBtn.textContent = TOGGLE_COPY.expanded;
+          toggleBtn.setAttribute('aria-expanded', 'true');
+        }
+      } else {
+        snippetEl.style.display = '';
+        fullEl.style.display    = 'none';
+        if (toggleBtn) {
+          toggleBtn.textContent = TOGGLE_COPY.collapsed;
+          toggleBtn.setAttribute('aria-expanded', 'false');
+        }
+      }
+    }
+  }
+
+  function renderPromptBox() {
+    var textarea = document.getElementById('promptOut');
+    if (textarea) textarea.value = buildCommand(state);
+    var statusEl = document.getElementById('status');
+    if (statusEl) {
+      statusEl.textContent = STATUS_COPY[state.copyStatus] || STATUS_COPY.idle;
+      statusEl.classList.toggle('copied', state.copyStatus === 'copied');
+    }
+  }
+
+  function render() {
+    renderPresetBar();
+    renderTimeline();
+    renderDetailPanel();
+    renderPromptBox();
+  }
+
+  /* 7. Event delegation — presets */
+  var presetRow = document.querySelector('.preset-row');
+  if (presetRow) {
+    presetRow.addEventListener('click', function (e) {
+      var el = e.target.closest('[data-preset]');
+      if (!el) return;
+      state.preset = el.dataset.preset;
+      if (state.copyStatus === 'idle') state.copyStatus = 'ready';
+      render();
+    });
+
+    presetRow.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        var el = e.target.closest('[data-preset]');
+        if (!el) return;
+        state.preset = el.dataset.preset;
+        if (state.copyStatus === 'idle') state.copyStatus = 'ready';
+        render();
+        return;
+      }
+      /* Arrow key roving-tabindex within radiogroup */
+      var buttons = Array.from(presetRow.querySelectorAll('[data-preset]'));
+      var idx = buttons.indexOf(document.activeElement);
+      if (idx === -1) return;
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        buttons[(idx + 1) % buttons.length].focus();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        buttons[(idx - 1 + buttons.length) % buttons.length].focus();
+      }
+    });
+  }
+
+  /* 8. Event delegation — timeline */
+  var svgTimeline = document.querySelector('svg.timeline');
+  if (svgTimeline) {
+    function getStepNodes() {
+      return Array.from(svgTimeline.querySelectorAll('[data-step-id]'));
+    }
+
+    svgTimeline.addEventListener('click', function (e) {
+      var g = e.target.closest('[data-step-id]');
+      if (!g) return;
+      state.activeStepId = g.dataset.stepId;
+      state.artifactExpanded = false;
+      if (state.copyStatus === 'idle') state.copyStatus = 'ready';
+      render();
+    });
+
+    svgTimeline.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        var g = e.target.closest('[data-step-id]');
+        if (!g) return;
+        state.activeStepId = g.dataset.stepId;
+        state.artifactExpanded = false;
+        if (state.copyStatus === 'idle') state.copyStatus = 'ready';
+        render();
+        return;
+      }
+      var nodes = getStepNodes();
+      var idx = nodes.indexOf(e.target.closest('[data-step-id]'));
+      if (idx === -1) return;
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        var next = nodes[(idx + 1) % nodes.length];
+        next.focus();
+        state.activeStepId = next.dataset.stepId;
+        state.artifactExpanded = false;
+        if (state.copyStatus === 'idle') state.copyStatus = 'ready';
+        render();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        var prev = nodes[(idx - 1 + nodes.length) % nodes.length];
+        prev.focus();
+        state.activeStepId = prev.dataset.stepId;
+        state.artifactExpanded = false;
+        if (state.copyStatus === 'idle') state.copyStatus = 'ready';
+        render();
+      }
+    });
+  }
+
+  /* 9. Artifact toggle handler */
+  document.getElementById('panel-artifact').addEventListener('click', function (e) {
+    var btn = e.target.closest('.toggle-btn');
+    if (!btn) return;
+    state.artifactExpanded = !state.artifactExpanded;
+    render();
+    /* prefers-reduced-motion: CSS already sets transition-duration:0ms — no JS action needed */
+  });
+
+  document.getElementById('panel-artifact').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var btn = e.target.closest('.toggle-btn');
+    if (!btn) return;
+    e.preventDefault();
+    state.artifactExpanded = !state.artifactExpanded;
+    render();
+  });
+
+  /* 10. Copy button handler */
+  var copyBtn = document.getElementById('copyBtn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', handleCopy);
+    copyBtn.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCopy(); }
+    });
+  }
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(buildCommand(state));
+      state.copyStatus = 'copied';
+      render();
+      setTimeout(function () { state.copyStatus = 'ready'; render(); }, 3000);
+    } catch (_) {
+      state.copyStatus = 'error';
+      var ta = document.getElementById('promptOut');
+      if (ta) ta.select();
+      render();
+    }
+  }
+
+  /* 11. Initial paint */
+  render();
+})();
+</script>
 </body>
 </html>
