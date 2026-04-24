@@ -109,14 +109,22 @@ export function GsdButtonOverride(args: { props: ButtonProps; children?: ReactNo
   // happen at runtime — keeps the override from crashing the screen).
   if (typeof StockButton !== 'function') {
     return (
-      <button type="button" onClick={handleClick} className="gsd-button-fallback">
+      <button type="button" onClick={() => handleClick()} className="gsd-button-fallback">
         {props.label ?? 'button'}
       </button>
     );
   }
 
-  // Delegate render to the stock shadcn Button. Inject our onClick into its
-  // props so the action routing wires up at the React event boundary.
-  const wrappedProps: Record<string, unknown> = { ...props, onClick: handleClick };
-  return <StockButton {...args} props={wrappedProps} />;
+  // The stock shadcn Button consumes its own `onClick` via `emit("press")`
+  // (see @json-render/shadcn dist/index.js around the Button entry). Injecting
+  // an `onClick` into `props` is therefore ignored. To intercept the click
+  // BEFORE the stock handler runs, wrap the stock render in a capture-phase
+  // listener. `onClickCapture` fires before the inner `onClick`, lets us route
+  // `props.action` to host hooks, and we still let the inner Button render its
+  // own JSX (preserving shadcn styling, focus, accessibility).
+  return (
+    <span onClickCapture={(e) => handleClick(e)} style={{ display: 'contents' }}>
+      <StockButton {...args} props={props} />
+    </span>
+  );
 }
