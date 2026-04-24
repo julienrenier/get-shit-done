@@ -25,7 +25,7 @@ function getInjectedSpec(): unknown {
 export function App() {
   const spec = getInjectedSpec();
   return (
-    <main className="min-h-screen p-6 font-mono text-gsd-fg bg-gsd-bg">
+    <main className="min-h-screen bg-background text-foreground">
       {spec ? (
         <JSONUIProvider registry={registry}>
           <Renderer spec={spec as never} registry={registry} />

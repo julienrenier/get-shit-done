@@ -1,136 +1,134 @@
-// POC spec per RENDERER-CONTRACT.md §1 + §8 (Plan 04-05).
+// POC descriptor — shadcn-only (Plan 04-05 v2 refactor, 2026-04-24).
 //
-// Encodes the locked POC layout: 4 GrayAreaCards in a horizontal grid +
-// 1 SnippetToggle + StatusPill + Submit/Reset Buttons. Buttons are part of
-// the SPEC (no parallel HTML buttons in PocScreen) — they route via the
-// GsdButtonOverride registered in registry.ts (Plan 04-03).
+// v1 (rejected) used GSD custom components (GrayAreaCard / SnippetToggle /
+// StatusPill / StageBanner) rendered through json-render's <Renderer>, which:
+//   - didn't look like shadcn (custom terminal-brand palette)
+//   - didn't support real click-to-select interactivity
 //
-// `Object.freeze` makes mutation in tests obvious (mitigates T-04-05-01).
+// v2 uses ONLY stock shadcn primitives (Card / RadioGroup / Checkbox /
+// Button / Separator / Label) rendered directly in PocScreen with genuine
+// React state. This module is now a **pure descriptor** of the POC content
+// (titles, options, button labels) consumed by both PocScreen and
+// poc.test.tsx so the two stay structurally synchronised.
+//
+// Non-goal: this is NOT a json-render spec. Host-injected specs continue to
+// flow through `<Renderer>` via `app.tsx` (unchanged). The POC simply
+// renders when no host is present (dev fallback).
 
-/**
- * Local structural type mirroring the json-render flat spec shape
- * (RENDERER-CONTRACT.md §1). `@json-render/core` does not currently export
- * a public name for this; declaring it locally keeps poc-spec.ts standalone
- * and lets the Renderer accept it via its own structural typing.
- */
-export interface JsonRenderSpec {
-  root: string;
-  elements: Record<string, { type: string; props: Record<string, unknown>; children?: string[] }>;
+export interface PocOption {
+  readonly value: string;
+  readonly label: string;
+  readonly notes: string | null;
 }
 
-export const POC_SPEC = Object.freeze({
-  root: 'page',
-  elements: {
-    page: {
-      type: 'Stack',
-      props: { direction: 'vertical', gap: 6 },
-      children: ['banner', 'grid', 'snippet', 'status', 'actions'],
-    },
-    banner: {
-      type: 'StageBanner',
-      props: { stage: 'PHASE 4 POC', icon: '⚡' },
-    },
-    grid: {
-      type: 'Stack',
-      props: { direction: 'horizontal', gap: 4 },
-      children: ['card1', 'card2', 'card3', 'card4'],
-    },
-    card1: {
-      type: 'GrayAreaCard',
-      props: {
-        title: 'Gray Area 1: stack',
-        options: [
-          { label: 'json-render + shadcn', selected: true, notes: 'locked Pivot #2' },
-          { label: 'vanilla CJS', selected: false, notes: 'archived' },
-        ],
-        follow_up: null,
-      },
-    },
-    card2: {
-      type: 'GrayAreaCard',
-      props: {
-        title: 'Gray Area 2: catalog scope',
-        options: [
-          { label: '36 shadcn + 6 GSD custom', selected: true, notes: null },
-          { label: 'shadcn only', selected: false, notes: null },
-        ],
-        follow_up: 'Final 6 GSD components selected in Plan 04-01.',
-      },
-    },
-    card3: {
-      type: 'GrayAreaCard',
-      props: {
-        title: 'Gray Area 3: build pipeline',
-        options: [
-          { label: 'Vite + vite-plugin-singlefile', selected: true, notes: 'D-10 lock' },
-          { label: 'esbuild custom', selected: false, notes: null },
-        ],
-        follow_up: null,
-      },
-    },
-    card4: {
-      type: 'GrayAreaCard',
-      props: {
-        title: 'Gray Area 4: adapter location',
-        options: [
-          { label: 'in hook (gsd-bridge-elicitation.cjs)', selected: true, notes: 'preserves Phase 1 lock' },
-          { label: 'in MCP server', selected: false, notes: null },
-        ],
-        follow_up: null,
-      },
-    },
-    snippet: {
-      type: 'SnippetToggle',
-      props: {
-        language: 'json',
-        code: JSON.stringify(
-          {
-            kind: 'render-spec',
-            session_id: 'poc',
-            mode: 'webview',
-            rendered_via: 'webview',
-          },
-          null,
-          2,
-        ),
-        collapsible: true,
-      },
-    },
-    status: {
-      type: 'StatusPill',
-      props: { status: 'pending', label: 'awaiting submit' },
-    },
-    actions: {
-      type: 'Stack',
-      props: { direction: 'horizontal', gap: 2 },
-      children: ['submitBtn', 'resetBtn'],
-    },
-    submitBtn: {
-      type: 'Button',
-      props: { label: 'submit', variant: 'primary', action: 'submit' },
-    },
-    resetBtn: {
-      type: 'Button',
-      props: { label: 'reset', variant: 'secondary', action: 'reset' },
-    },
+export interface PocCard {
+  readonly id: 'card1' | 'card2' | 'card3' | 'card4';
+  readonly title: string;
+  readonly description: string | null;
+  readonly options: readonly PocOption[];
+  /** Option `value` pre-selected when the POC first mounts (RadioGroup defaultValue). */
+  readonly defaultValue: string;
+}
+
+export interface PocDescriptor {
+  readonly banner: {
+    readonly stage: string;
+    readonly tagline: string;
+  };
+  readonly cards: readonly PocCard[];
+  readonly autoFlag: {
+    readonly label: string;
+    readonly description: string;
+    readonly defaultChecked: boolean;
+  };
+  readonly actions: {
+    readonly submit: { readonly label: string; readonly variant: 'default' };
+    readonly reset: { readonly label: string; readonly variant: 'outline' };
+  };
+}
+
+export const POC_DESCRIPTOR: PocDescriptor = Object.freeze({
+  // `as const` narrows the `id` literals to their exact union values for the
+  // PocCard discriminant. The outer `as PocDescriptor` cast validates the
+  // overall shape.
+  banner: {
+    stage: 'Phase 4 POC — shadcn interactive',
+    tagline: 'Pick one option per card, then submit. Uses ONLY stock shadcn components.',
   },
-} as const) as unknown as JsonRenderSpec;
+  cards: [
+    {
+      id: 'card1',
+      title: 'Gray Area 1 — stack',
+      description: 'Which UI stack ships the webview?',
+      defaultValue: 'json-render-shadcn',
+      options: [
+        {
+          value: 'json-render-shadcn',
+          label: 'json-render + shadcn',
+          notes: 'locked Pivot #2',
+        },
+        { value: 'vanilla-cjs', label: 'vanilla CJS', notes: 'archived' },
+      ],
+    },
+    {
+      id: 'card2',
+      title: 'Gray Area 2 — catalog scope',
+      description: 'How many components does the catalog expose?',
+      defaultValue: 'shadcn-plus-gsd',
+      options: [
+        { value: 'shadcn-plus-gsd', label: '36 shadcn + 6 GSD custom', notes: null },
+        { value: 'shadcn-only', label: 'shadcn only', notes: null },
+      ],
+    },
+    {
+      id: 'card3',
+      title: 'Gray Area 3 — build pipeline',
+      description: 'Which bundler powers the single-file build?',
+      defaultValue: 'vite-singlefile',
+      options: [
+        {
+          value: 'vite-singlefile',
+          label: 'Vite + vite-plugin-singlefile',
+          notes: 'D-10 lock',
+        },
+        { value: 'esbuild-custom', label: 'esbuild custom', notes: null },
+      ],
+    },
+    {
+      id: 'card4',
+      title: 'Gray Area 4 — adapter location',
+      description: 'Where does requested_schema → spec adaptation live?',
+      defaultValue: 'in-hook',
+      options: [
+        {
+          value: 'in-hook',
+          label: 'In the hook (gsd-bridge-elicitation.cjs)',
+          notes: 'preserves Phase 1 lock',
+        },
+        { value: 'in-mcp-server', label: 'In the MCP server', notes: null },
+      ],
+    },
+  ],
+  autoFlag: {
+    label: 'Advance automatically after submit (--auto)',
+    description:
+      'When enabled, the host resumes the workflow without waiting for a manual Continue click.',
+    defaultChecked: false,
+  },
+  actions: {
+    submit: { label: 'Submit', variant: 'default' },
+    reset: { label: 'Reset', variant: 'outline' },
+  },
+} as const) as unknown as PocDescriptor;
 
 /**
- * Helper used by both the PocScreen payload provider and the round-trip tests.
- * Extracts the currently-selected option label per gray area card.
+ * Default selection map derived from POC_DESCRIPTOR — used by PocScreen as
+ * the initial state and by tests that assert the pristine payload shape.
  */
-export function pocDefaultSelections(): Array<{ card: string; selected: string }> {
-  const elements = POC_SPEC.elements as Record<
-    string,
-    { type: string; props: Record<string, unknown>; children?: string[] }
-  >;
-  return ['card1', 'card2', 'card3', 'card4'].map((id) => {
-    const props = elements[id].props as {
-      title: string;
-      options: Array<{ label: string; selected: boolean }>;
-    };
-    const sel = props.options.find((o) => o.selected);
-    return { card: props.title, selected: sel ? sel.label : '(none)' };
-  });
+export function pocInitialSelections(): Record<PocCard['id'], string> {
+  const result: Record<string, string> = {};
+  for (const card of POC_DESCRIPTOR.cards) {
+    result[card.id] = card.defaultValue;
+  }
+  return result as Record<PocCard['id'], string>;
 }

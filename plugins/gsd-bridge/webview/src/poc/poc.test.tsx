@@ -1,85 +1,57 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
-import { POC_SPEC, pocDefaultSelections } from './poc-spec';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { POC_DESCRIPTOR, pocInitialSelections } from './poc-spec';
 import { PocScreen } from './PocScreen';
 
 // =====================================================================
-// POC_SPEC structure (Plan 04-05 Task 1 — spec-as-source-of-truth gates)
+// Plan 04-05 v2 tests — shadcn-only interactive POC.
+//
+// Covers:
+//   1. POC_DESCRIPTOR structure (4 cards, autoFlag, actions)
+//   2. Initial render: banner, 4 Cards, 8 radio options, checkbox, buttons
+//   3. Interactivity: clicking radios updates selections, checkbox toggles
+//   4. Submit round-trip: window.__gsdSubmit receives real user selections
+//   5. Reset: clears selections + submitted marker + invokes window.__gsdReset
+//   6. shadcn-only assertion: no GSD custom components in the rendered tree
 // =====================================================================
 
-describe('POC_SPEC structure', () => {
-  it('has root=page with the 5 expected children in order', () => {
-    expect(POC_SPEC.root).toBe('page');
-    const elements = POC_SPEC.elements as Record<string, { children?: string[] }>;
-    expect(elements.page.children).toEqual(['banner', 'grid', 'snippet', 'status', 'actions']);
+describe('POC_DESCRIPTOR structure', () => {
+  it('exposes exactly 4 gray-area cards with stable ids', () => {
+    expect(POC_DESCRIPTOR.cards).toHaveLength(4);
+    expect(POC_DESCRIPTOR.cards.map((c) => c.id)).toEqual([
+      'card1',
+      'card2',
+      'card3',
+      'card4',
+    ]);
   });
 
-  it('grid contains exactly 4 GrayAreaCards with distinct titles', () => {
-    const elements = POC_SPEC.elements as Record<
-      string,
-      { type: string; props: { title?: string }; children?: string[] }
-    >;
-    expect(elements.grid.children).toHaveLength(4);
-    const titles = new Set<string>();
-    for (const id of ['card1', 'card2', 'card3', 'card4']) {
-      expect(elements[id].type).toBe('GrayAreaCard');
-      titles.add(String(elements[id].props.title));
+  it('every card has at least 2 options and a valid defaultValue', () => {
+    for (const card of POC_DESCRIPTOR.cards) {
+      expect(card.options.length).toBeGreaterThanOrEqual(2);
+      const values = card.options.map((o) => o.value);
+      expect(values).toContain(card.defaultValue);
     }
-    expect(titles.size).toBe(4);
   });
 
-  it('snippet is a collapsible json SnippetToggle', () => {
-    const elements = POC_SPEC.elements as Record<
-      string,
-      { type: string; props: { language: string; collapsible: boolean } }
-    >;
-    expect(elements.snippet.type).toBe('SnippetToggle');
-    expect(elements.snippet.props.language).toBe('json');
-    expect(elements.snippet.props.collapsible).toBe(true);
+  it('autoFlag defaults to unchecked', () => {
+    expect(POC_DESCRIPTOR.autoFlag.defaultChecked).toBe(false);
   });
 
-  it('status is a StatusPill in pending state', () => {
-    const elements = POC_SPEC.elements as Record<
-      string,
-      { type: string; props: { status: string } }
-    >;
-    expect(elements.status.type).toBe('StatusPill');
-    expect(elements.status.props.status).toBe('pending');
+  it('submit/reset actions use shadcn Button variants (default + outline)', () => {
+    expect(POC_DESCRIPTOR.actions.submit.variant).toBe('default');
+    expect(POC_DESCRIPTOR.actions.reset.variant).toBe('outline');
   });
 
-  it('actions has submitBtn + resetBtn with action verbs (no other Buttons)', () => {
-    const elements = POC_SPEC.elements as Record<
-      string,
-      { type: string; props: { action?: string }; children?: string[] }
-    >;
-    expect(elements.actions.children).toEqual(['submitBtn', 'resetBtn']);
-    expect(elements.submitBtn.type).toBe('Button');
-    expect(elements.submitBtn.props.action).toBe('submit');
-    expect(elements.resetBtn.type).toBe('Button');
-    expect(elements.resetBtn.props.action).toBe('reset');
+  it('pocInitialSelections seeds every card with its defaultValue', () => {
+    const initial = pocInitialSelections();
+    for (const card of POC_DESCRIPTOR.cards) {
+      expect(initial[card.id]).toBe(card.defaultValue);
+    }
   });
 });
 
-// =====================================================================
-// pocDefaultSelections helper
-// =====================================================================
-
-describe('pocDefaultSelections helper', () => {
-  it('returns the selected option label for each of the 4 cards', () => {
-    const sel = pocDefaultSelections();
-    expect(sel).toHaveLength(4);
-    expect(sel[0].selected).toContain('json-render');
-    expect(sel[1].selected).toContain('shadcn');
-    expect(sel[2].selected).toContain('Vite');
-    expect(sel[3].selected).toContain('hook');
-  });
-});
-
-// =====================================================================
-// PocScreen — spec-driven round-trip via the Plan 04-03 Button override
-// =====================================================================
-
-describe('PocScreen — spec-driven round-trip via Button override', () => {
+describe('PocScreen render', () => {
   beforeEach(() => {
     if (typeof window !== 'undefined') {
       delete window.__gsdSubmit;
@@ -93,106 +65,218 @@ describe('PocScreen — spec-driven round-trip via Button override', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders the StageBanner and the 4 GrayAreaCards', () => {
+  it('renders the banner tagline', () => {
     render(<PocScreen />);
-    expect(screen.getByText(/PHASE 4 POC/i)).toBeTruthy();
-    expect(screen.getByText(/Gray Area 1/i)).toBeTruthy();
-    expect(screen.getByText(/Gray Area 2/i)).toBeTruthy();
-    expect(screen.getByText(/Gray Area 3/i)).toBeTruthy();
-    expect(screen.getByText(/Gray Area 4/i)).toBeTruthy();
+    expect(screen.getByText(POC_DESCRIPTOR.banner.stage)).toBeTruthy();
+    expect(screen.getByText(POC_DESCRIPTOR.banner.tagline)).toBeTruthy();
   });
 
-  it('registers __gsdPayloadProvider on mount and removes it on unmount', () => {
+  it('renders 4 shadcn Cards with their card titles', () => {
+    render(<PocScreen />);
+    for (const card of POC_DESCRIPTOR.cards) {
+      expect(screen.getByTestId(`poc-${card.id}`)).toBeTruthy();
+      expect(screen.getByText(card.title)).toBeTruthy();
+    }
+  });
+
+  it('each card has a RadioGroup with its 2 options selectable', () => {
+    render(<PocScreen />);
+    for (const card of POC_DESCRIPTOR.cards) {
+      const group = screen.getByTestId(`poc-${card.id}-radiogroup`);
+      expect(group).toBeTruthy();
+      const radios = within(group).getAllByRole('radio');
+      expect(radios).toHaveLength(card.options.length);
+    }
+  });
+
+  it('renders the --auto checkbox', () => {
+    render(<PocScreen />);
+    const checkbox = screen.getByTestId('poc-auto-checkbox');
+    expect(checkbox).toBeTruthy();
+    expect(checkbox.getAttribute('role')).toBe('checkbox');
+  });
+
+  it('renders shadcn Submit + Reset buttons', () => {
+    render(<PocScreen />);
+    expect(screen.getByTestId('poc-submit').textContent).toMatch(/submit/i);
+    expect(screen.getByTestId('poc-reset').textContent).toMatch(/reset/i);
+  });
+});
+
+describe('PocScreen — interactivity', () => {
+  beforeEach(() => {
+    if (typeof window !== 'undefined') {
+      delete window.__gsdSubmit;
+      delete window.__gsdReset;
+      delete window.__gsdPayloadProvider;
+    }
+  });
+
+  it('clicking a non-default RadioGroupItem updates the card selection in the payload', () => {
+    render(<PocScreen />);
+    // Click Card 1 option "vanilla-cjs" (non-default)
+    const altRadio = screen.getByTestId('poc-card1-option-vanilla-cjs');
+    fireEvent.click(altRadio);
+
+    // The payload provider should now reflect the new selection
+    const payload = window.__gsdPayloadProvider!() as {
+      selections: Record<string, string>;
+      selections_flat: Array<{ card: string; value: string; label: string }>;
+    };
+    expect(payload.selections.card1).toBe('vanilla-cjs');
+    const card1Entry = payload.selections_flat.find((e) => /Gray Area 1/.test(e.card));
+    expect(card1Entry?.label).toContain('vanilla CJS');
+  });
+
+  it('toggling the auto checkbox flips payload.auto', () => {
+    render(<PocScreen />);
+    const initialPayload = window.__gsdPayloadProvider!() as { auto: boolean };
+    expect(initialPayload.auto).toBe(false);
+
+    fireEvent.click(screen.getByTestId('poc-auto-checkbox'));
+
+    const togglePayload = window.__gsdPayloadProvider!() as { auto: boolean };
+    expect(togglePayload.auto).toBe(true);
+  });
+
+  it('registers window.__gsdPayloadProvider on mount and removes it on unmount', () => {
     const { unmount } = render(<PocScreen />);
     expect(typeof window.__gsdPayloadProvider).toBe('function');
-    const payload = window.__gsdPayloadProvider!() as {
-      action: string;
-      selections: unknown[];
-      snippet_expanded: boolean;
-      ts: string;
-    };
-    expect(payload.action).toBe('submit');
-    expect(payload.selections).toHaveLength(4);
-    expect(typeof payload.ts).toBe('string');
     unmount();
     expect(window.__gsdPayloadProvider).toBeUndefined();
-    expect(window.__gsdReset).toBeUndefined();
+  });
+});
+
+describe('PocScreen — submit round-trip', () => {
+  beforeEach(() => {
+    if (typeof window !== 'undefined') {
+      delete window.__gsdSubmit;
+      delete window.__gsdReset;
+      delete window.__gsdPayloadProvider;
+    }
   });
 
-  it('clicking the spec-rendered Submit button calls window.__gsdSubmit once with the assembled payload', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('clicking Submit calls window.__gsdSubmit once with the real selections', () => {
     const submitSpy = vi.fn();
     window.__gsdSubmit = submitSpy;
 
     render(<PocScreen />);
-    // The Button is rendered FROM THE SPEC (via the registry override). Its
-    // accessible name is "submit" (label prop in POC_SPEC).
-    const submitButton = screen.getByRole('button', { name: /^submit$/i });
-    fireEvent.click(submitButton);
+    // Change card2 + card3 to non-default BEFORE submitting
+    fireEvent.click(screen.getByTestId('poc-card2-option-shadcn-only'));
+    fireEvent.click(screen.getByTestId('poc-card3-option-esbuild-custom'));
+    fireEvent.click(screen.getByTestId('poc-auto-checkbox'));
+
+    fireEvent.click(screen.getByTestId('poc-submit'));
 
     expect(submitSpy).toHaveBeenCalledTimes(1);
     const payload = submitSpy.mock.calls[0][0] as {
       action: string;
-      selections: Array<{ card: string; selected: string }>;
-      snippet_expanded: boolean;
+      selections: Record<string, string>;
+      auto: boolean;
       ts: string;
     };
     expect(payload.action).toBe('submit');
-    expect(payload.selections).toHaveLength(4);
-    expect(payload.snippet_expanded).toBe(false);
-    expect(typeof payload.ts).toBe('string');
+    expect(payload.selections.card1).toBe('json-render-shadcn'); // unchanged default
+    expect(payload.selections.card2).toBe('shadcn-only'); // changed
+    expect(payload.selections.card3).toBe('esbuild-custom'); // changed
+    expect(payload.selections.card4).toBe('in-hook'); // unchanged default
+    expect(payload.auto).toBe(true);
     expect(payload.ts).toMatch(/^\d{4}-/);
   });
 
-  it('falls back to console.log when window.__gsdSubmit is absent (dev mode)', () => {
+  it('clicking Submit without a host falls back to console.log (dev mode)', () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     render(<PocScreen />);
-    fireEvent.click(screen.getByRole('button', { name: /^submit$/i }));
+    fireEvent.click(screen.getByTestId('poc-submit'));
 
     expect(consoleSpy).toHaveBeenCalled();
-    // First arg should mention the action
     const firstArg = String(consoleSpy.mock.calls[0]?.[0] ?? '');
     expect(firstArg).toMatch(/submit/);
   });
 
-  it('clicking the spec-rendered Reset clears the submitted marker via window.__gsdReset', () => {
+  it('after Submit the submitted marker renders with a pretty-printed payload', () => {
+    window.__gsdSubmit = () => {};
+    render(<PocScreen />);
+    expect(screen.queryByTestId('poc-submitted-marker')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('poc-submit'));
+    const marker = screen.getByTestId('poc-submitted-marker');
+    expect(marker).toBeTruthy();
+    expect(within(marker).getByText(/"action": "submit"/)).toBeTruthy();
+  });
+});
+
+describe('PocScreen — reset', () => {
+  beforeEach(() => {
+    if (typeof window !== 'undefined') {
+      delete window.__gsdSubmit;
+      delete window.__gsdReset;
+      delete window.__gsdPayloadProvider;
+    }
+  });
+
+  it('clicking Reset clears selections back to defaults and removes the submitted marker', () => {
     window.__gsdSubmit = () => {};
     render(<PocScreen />);
 
-    fireEvent.click(screen.getByRole('button', { name: /^submit$/i }));
+    // Mutate state
+    fireEvent.click(screen.getByTestId('poc-card1-option-vanilla-cjs'));
+    fireEvent.click(screen.getByTestId('poc-auto-checkbox'));
+    fireEvent.click(screen.getByTestId('poc-submit'));
     expect(screen.getByTestId('poc-submitted-marker')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: /^reset$/i }));
+    fireEvent.click(screen.getByTestId('poc-reset'));
     expect(screen.queryByTestId('poc-submitted-marker')).toBeNull();
+
+    // Payload provider reflects cleared state
+    const payload = window.__gsdPayloadProvider!() as {
+      selections: Record<string, string>;
+      auto: boolean;
+    };
+    expect(payload.selections.card1).toBe('json-render-shadcn');
+    expect(payload.auto).toBe(false);
   });
 
-  it('PocScreen does NOT render parallel HTML buttons outside the spec', () => {
+  it('clicking Reset also invokes window.__gsdReset when a host registered one', () => {
+    const resetSpy = vi.fn();
+    window.__gsdReset = resetSpy;
     render(<PocScreen />);
-    const buttons = screen.getAllByRole('button');
-    // Exactly one Submit and one Reset (the spec-rendered ones). The
-    // SnippetToggle's own expand/collapse button is unrelated.
-    const submitButtons = buttons.filter((b) => /^submit$/i.test(b.textContent || ''));
-    const resetButtons = buttons.filter((b) => /^reset$/i.test(b.textContent || ''));
-    expect(submitButtons).toHaveLength(1);
-    expect(resetButtons).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId('poc-reset'));
+    expect(resetSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('PocScreen — shadcn-only (no GSD custom components)', () => {
+  it('renders no GSD custom component markers in the tree', () => {
+    render(<PocScreen />);
+    // These data-testids are hardcoded in the 6 GSD custom components
+    // (GrayAreaCard / SnippetToggle / StatusPill / StageBanner / ASCIIProgress
+    // / CommandBlock — see src/components/*.tsx). The POC must NOT contain
+    // any of them.
+    const forbiddenTestIds = [
+      'gray-area-card',
+      'snippet-toggle',
+      'status-pill',
+      'stage-banner',
+      'ascii-progress',
+      'command-block',
+    ];
+    for (const id of forbiddenTestIds) {
+      expect(screen.queryByTestId(id)).toBeNull();
+    }
   });
 
-  it('renders the SnippetToggle in collapsed state with an expand affordance', () => {
+  it('renders no legacy "PHASE 4 POC" stage banner copy (v1 artefact)', () => {
     render(<PocScreen />);
-    // SnippetToggle starts collapsed (collapsible=true) — the JSON body is hidden
-    expect(screen.queryByText(/"kind": "render-spec"/)).toBeNull();
-    // The expand button is present
-    expect(screen.getByRole('button', { name: /expand/i })).toBeTruthy();
-  });
-
-  it('renders the StatusPill with the awaiting-submit label', () => {
-    render(<PocScreen />);
-    expect(screen.getByText(/awaiting submit/i)).toBeTruthy();
-  });
-
-  it('payload provider includes snippet_expanded reflecting current screen state', () => {
-    render(<PocScreen />);
-    const initial = window.__gsdPayloadProvider!() as { snippet_expanded: boolean };
-    expect(initial.snippet_expanded).toBe(false);
+    // v1 banner text used uppercase "PHASE 4 POC"; v2 uses the descriptor's
+    // `banner.stage` which is title-case "Phase 4 POC — shadcn interactive".
+    // Keeping this assertion guards against accidental revert.
+    expect(screen.queryByText(/^PHASE 4 POC$/)).toBeNull();
   });
 });
