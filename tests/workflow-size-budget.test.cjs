@@ -111,7 +111,7 @@ describe('SIZE: discuss-phase progressive disclosure (issue #2551)', () => {
   const SUBDIR = path.join(WORKFLOWS_DIR, 'discuss-phase');
 
   test('mode files exist for every documented mode', () => {
-    const expected = ['power', 'all', 'auto', 'chain', 'text', 'batch', 'analyze', 'default', 'advisor'];
+    const expected = ['power', 'all', 'auto', 'chain', 'text', 'batch', 'analyze', 'default', 'advisor', 'pro'];
     for (const mode of expected) {
       const p = path.join(SUBDIR, 'modes', `${mode}.md`);
       assert.ok(
