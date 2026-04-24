@@ -1,5 +1,5 @@
 {
-  "generated": "2026-04-23",
+  "generated": "2026-04-24",
   "families": {
     "agents": [
       "gsd-advisor-researcher",
@@ -61,6 +61,7 @@
       "/gsd-explore",
       "/gsd-extract_learnings",
       "/gsd-fast",
+      "/gsd-fetch-phase-docs",
       "/gsd-forensics",
       "/gsd-from-gsd2",
       "/gsd-graphify",
@@ -133,6 +134,7 @@
       "audit-milestone.md",
       "audit-uat.md",
       "autonomous.md",
+      "browser-bridge.md",
       "check-todos.md",
       "cleanup.md",
       "code-review-fix.md",
@@ -151,6 +153,7 @@
       "explore.md",
       "extract_learnings.md",
       "fast.md",
+      "fetch-phase-docs.md",
       "forensics.md",
       "graduation.md",
       "health.md",
