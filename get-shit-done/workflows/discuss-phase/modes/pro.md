@@ -41,6 +41,7 @@ Overlay `--pro` — **step-hook mode** (same family as `--batch`, `--analyze`, `
 <required_reading>
 @get-shit-done/workflows/discuss-phase/templates/pro-questions-schema.json
 @get-shit-done/workflows/discuss-phase/templates/context.md
+@get-shit-done/workflows/browser-bridge.md
 </required_reading>
 
 <step name="discuss_areas_override">
@@ -90,7 +91,25 @@ Open the file and fill in the `answer` field for each question. Then reply with:
 - `explain Q-N`— print the exhaustive `context` for question Q-N.
 ```
 
-**Sub-step 3 — wait_loop:**
+**Sub-step 3 — show_playground_optional:**
+
+Fire-and-forget: invoke `show_playground` via the `gsd-bridge` plugin so the user
+sees the 8-step diagram while filling `{padded_phase}-PRO-QUESTIONS.json` out-of-band.
+
+    Tool: show_playground
+    Args: {
+      "url": "file://{phase_dir}/discuss-playground.html"
+    }
+
+`{phase_dir}` is SDK-resolved by the dispatcher's `initialize` step. The plugin
+validates the path is under `cwd`; the playground file is inside the project tree.
+
+**Fallback:** if the plugin is absent, the file does not exist, or the tool returns
+`isError: true`, log `[bridge] <error>` to the terminal and proceed to sub-step 4.
+No retry — per browser-bridge.md critical rule 3, two consecutive timeouts mean the
+browser is not connected; do not block the workflow.
+
+**Sub-step 4 — wait_loop:**
 
 Enter a loop. On each user message:
 
@@ -171,3 +190,6 @@ After CONTEXT.md is written, control returns to the dispatcher's
 - File-state pattern (refresh/finalize loop inspiration): `get-shit-done/workflows/discuss-phase-power.md`
 - Deferred coherence validation (D-07): todo `validation-cross-questions-pro`
 - CONTEXT.md template: `get-shit-done/workflows/discuss-phase/templates/context.md`
+- Browser bridge invocation pattern: `get-shit-done/workflows/browser-bridge.md`
+- Phase 3 playground artefact: `.planning/phases/{padded_phase}-discuss-webview-integration/discuss-playground.html`
+- gsd-bridge plugin docs: `plugins/gsd-bridge/README.md`
