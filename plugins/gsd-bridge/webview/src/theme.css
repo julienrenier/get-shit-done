@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --gsd-bg: #0b0d10;
+    --gsd-surface: #1a1f2e;
+    --gsd-surface-variant: #2d3748;
+    --gsd-fg: #e8e8e8;
+    --gsd-fg-muted: #a0a0a0;
+    --gsd-accent: #4a9eff;
+    --gsd-accent-dark: #2e6cb8;
+    --gsd-success: #4ade80;
+    --gsd-warning: #fbbf24;
+    --gsd-destructive: #ef4444;
+    --gsd-info: #8b5cf6;
+  }
+
+  html,
+  body {
+    background: var(--gsd-bg);
+    color: var(--gsd-fg);
+    font-family: 'JetBrains Mono', 'Menlo', monospace;
+    margin: 0;
+    min-height: 100vh;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+}
