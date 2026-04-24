@@ -5,6 +5,10 @@
  * artefact delivered by Phase 03 Plans 01-03. Uses only node built-ins.
  *
  * Closes: INTEG-06 (4 gray areas audited by locked invariants)
+ *
+ * Fresh-clone-safe: the playground HTML lives under `.planning/` (gitignored
+ * per CLAUDE.md line 4). When absent, HTML-dependent tests are reported as
+ * skipped and the suite exits 0. The two pro.md tests always run.
  */
 
 'use strict';
@@ -17,7 +21,16 @@ const path = require('path');
 const HTML_PATH = path.join(__dirname, '..', '.planning', 'phases', '03-discuss-webview-integration', 'discuss-playground.html');
 const PRO_PATH  = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'discuss-phase', 'modes', 'pro.md');
 
-const LOCKED_STEP_IDS = [
+const HTML_EXISTS = fs.existsSync(HTML_PATH);
+
+// The 8 step IDs visualized by the playground's educational diagram.
+// This is deliberately a SUBSET of the dispatcher's full step list
+// (see get-shit-done/workflows/discuss-phase.md — which additionally
+// contains check_blocking_antipatterns, check_existing,
+// cross_reference_todos, confirm_creation, git_commit, update_state,
+// auto_advance). Locked by Plan 03-01 + D-03 in 03-CONTEXT.md.
+// See UI-SPEC §Timeline Strip.
+const PLAYGROUND_DIAGRAM_STEPS = [
   'initialize',
   'check_spec',
   'load_prior_context',
@@ -32,21 +45,20 @@ const LOCKED_PRESETS = ['default', 'auto', 'advisor', 'pro'];
 
 // ---------------------------------------------------------------------------
 
-test('playground artefact exists and is under size budget', () => {
-  assert.ok(fs.existsSync(HTML_PATH), `playground not found at ${HTML_PATH}`);
+test('playground artefact exists and is under size budget', { skip: !HTML_EXISTS && 'playground not present (gitignored .planning/ artefact)' }, () => {
   const { size } = fs.statSync(HTML_PATH);
   assert.ok(size < 61440, `playground size ${size} bytes >= 61440 bytes (60 KB budget)`);
 });
 
 // ---------------------------------------------------------------------------
 
-test('playground declares the 8 locked discuss-phase step IDs in the locked order', () => {
+test('playground declares the 8 locked discuss-phase step IDs in the locked order', { skip: !HTML_EXISTS && 'playground not present (gitignored .planning/ artefact)' }, () => {
   const html = fs.readFileSync(HTML_PATH, 'utf8');
 
   // SVG data-step-id attributes
   const stepIdRe = /data-step-id="([^"]+)"/g;
   const ids = [...html.matchAll(stepIdRe)].map(m => m[1]);
-  assert.deepEqual(ids, LOCKED_STEP_IDS, 'data-step-id attributes must match locked order');
+  assert.deepEqual(ids, PLAYGROUND_DIAGRAM_STEPS, 'data-step-id attributes must match locked order');
 
   // Cross-check the embedded JSON payload
   const jsonMatch = html.match(/<script type="application\/json" id="steps-data">([\s\S]*?)<\/script>/);
@@ -58,7 +70,7 @@ test('playground declares the 8 locked discuss-phase step IDs in the locked orde
 
 // ---------------------------------------------------------------------------
 
-test('playground declares the 4 locked preset data-preset attributes', () => {
+test('playground declares the 4 locked preset data-preset attributes', { skip: !HTML_EXISTS && 'playground not present (gitignored .planning/ artefact)' }, () => {
   const html = fs.readFileSync(HTML_PATH, 'utf8');
   const presetRe = /data-preset="([^"]+)"/g;
   const presets = [...html.matchAll(presetRe)].map(m => m[1]);
@@ -70,22 +82,23 @@ test('playground declares the 4 locked preset data-preset attributes', () => {
 
 // ---------------------------------------------------------------------------
 
-test('buildCommand pure function produces the 4 locked CLI strings', () => {
+test('buildCommand pure function produces the 4 locked CLI strings', { skip: !HTML_EXISTS && 'playground not present (gitignored .planning/ artefact)' }, () => {
   const html = fs.readFileSync(HTML_PATH, 'utf8');
-  // The actual function in the playground uses parameter name 'st', not 'state'.
-  // Match the function regardless of parameter name.
-  const match = html.match(/function buildCommand\s*\(\w+\)\s*\{[\s\S]*?\n  \}/);
-  assert.ok(match, 'buildCommand function not found in playground');
-  const body = match[0];
-  // Rewrite to a function with parameter 'state' so the inner body can reference 'state'.
-  // First extract the parameter name used in the original.
-  const paramMatch = body.match(/^function buildCommand\s*\((\w+)\)/);
-  assert.ok(paramMatch, 'could not extract buildCommand parameter name');
-  const param = paramMatch[1]; // e.g. 'st'
-  const innerBody = body
-    .replace(/^function buildCommand\s*\(\w+\)\s*\{/, '')
-    .replace(/\}$/, '');
-  // Alias the parameter to 'state' if needed, or just use the original param name.
+  // Bracket-balanced extraction — survives reformatting (WR-01 fix).
+  const signatureMatch = html.match(/function\s+buildCommand\s*\(\s*(\w+)\s*\)\s*\{/);
+  assert.ok(signatureMatch, 'buildCommand function signature not found in playground');
+  const param = signatureMatch[1];
+  const bodyStart = signatureMatch.index + signatureMatch[0].length;
+  let depth = 1;
+  let cursor = bodyStart;
+  while (cursor < html.length && depth > 0) {
+    const ch = html[cursor];
+    if (ch === '{') depth += 1;
+    else if (ch === '}') depth -= 1;
+    cursor += 1;
+  }
+  assert.equal(depth, 0, 'buildCommand body braces unbalanced');
+  const innerBody = html.slice(bodyStart, cursor - 1);
   const buildCommand = new Function(param, innerBody); // eslint-disable-line no-new-func
 
   assert.equal(buildCommand({ preset: 'default',  phaseNumber: 1 }), '/gsd-discuss-phase 1');
@@ -96,7 +109,7 @@ test('buildCommand pure function produces the 4 locked CLI strings', () => {
 
 // ---------------------------------------------------------------------------
 
-test('playground has no external resource references', () => {
+test('playground has no external resource references', { skip: !HTML_EXISTS && 'playground not present (gitignored .planning/ artefact)' }, () => {
   const html = fs.readFileSync(HTML_PATH, 'utf8');
   const forbidden = [
     /src="https?:\/\//,
@@ -111,9 +124,12 @@ test('playground has no external resource references', () => {
 
 // ---------------------------------------------------------------------------
 
-test('playground uses textContent not innerHTML', () => {
+test('playground uses textContent not innerHTML', { skip: !HTML_EXISTS && 'playground not present (gitignored .planning/ artefact)' }, () => {
   const html = fs.readFileSync(HTML_PATH, 'utf8');
-  assert.ok(!html.includes('innerHTML'), 'playground must not use innerHTML (textContent required)');
+  // Assignment-pattern targeted check (WR-02 fix): matches `.innerHTML =` or
+  // `.innerHTML=`, not bare substring — comments/docs mentioning innerHTML are OK.
+  const innerHtmlAssignment = /\.innerHTML\s*=/;
+  assert.ok(!innerHtmlAssignment.test(html), 'playground must not assign to innerHTML (textContent required; comments/docs mentioning innerHTML are acceptable)');
 });
 
 // ---------------------------------------------------------------------------
