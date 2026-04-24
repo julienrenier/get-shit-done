@@ -24,6 +24,7 @@ budget). Read only the files needed for the current invocation:
 | `--text` in $ARGUMENTS or `workflow.text_mode: true` | `workflows/discuss-phase/modes/text.md` overlay |
 | `--batch` in $ARGUMENTS | `workflows/discuss-phase/modes/batch.md` overlay |
 | `--analyze` in $ARGUMENTS | `workflows/discuss-phase/modes/analyze.md` overlay |
+| `--pro` in $ARGUMENTS | `workflows/discuss-phase/modes/pro.md` overlay (step-hook before `discuss_areas`) |
 | ADVISOR_MODE = true (USER-PROFILE.md exists) | `workflows/discuss-phase/modes/advisor.md` |
 | no flags above | `workflows/discuss-phase/modes/default.md` |
 | in `write_context` step | `workflows/discuss-phase/templates/context.md` |
@@ -144,6 +145,7 @@ fi
   - `--text` (or `workflow.text_mode: true`) → Read `workflows/discuss-phase/modes/text.md` before any AskUserQuestion call.
   - `--batch` → Read `workflows/discuss-phase/modes/batch.md` before `discuss_areas`.
   - `--analyze` → Read `workflows/discuss-phase/modes/analyze.md` before `discuss_areas`.
+  - `--pro` → Read `workflows/discuss-phase/modes/pro.md` before `discuss_areas` (overrides `discuss_areas` + `write_context` via `_override` step declarations; dispatcher pre-steps run normally).
   - `ADVISOR_MODE = true` → Read `workflows/discuss-phase/modes/advisor.md` before `analyze_phase` (it changes the discussion flow and adds an `advisor_research` substep).
   - No flags → Read `workflows/discuss-phase/modes/default.md` before `discuss_areas`.
 
