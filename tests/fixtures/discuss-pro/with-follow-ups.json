@@ -1,0 +1,72 @@
+{
+  "phase": "02-discuss-workflow-mode",
+  "generated_at": "2026-04-24T10:00:00.000Z",
+  "stats": {
+    "total": 3,
+    "answered": 3,
+    "remaining": 0,
+    "required_unanswered": 0
+  },
+  "sections": [
+    {
+      "id": "architecture",
+      "title": "Architecture Decisions",
+      "questions": [
+        {
+          "id": "Q-01",
+          "title": "Are follow-ups needed for this plan?",
+          "context": "D-08: follow_up triggers when answer matches follow_up.trigger. D-NEW-18: follow-up appended to section.questions[] on refresh.",
+          "options": [
+            { "id": "a", "label": "No", "description": "Simple path" },
+            { "id": "b", "label": "Yes", "description": "Triggers Q-01-FU" }
+          ],
+          "criticality": "required",
+          "follow_up": {
+            "trigger": "b",
+            "question": {
+              "id": "Q-01-FU",
+              "title": "Where should the follow-up live in the JSON?",
+              "context": "Follow-up question appended to parent section.questions[] when Q-01 answer === 'b'.",
+              "options": [
+                { "id": "a", "label": "Inline in section.questions[]", "description": "Same array as parent" },
+                { "id": "b", "label": "Separate follow_ups[] array", "description": "Rejected for MVP" }
+              ],
+              "criticality": "required",
+              "follow_up": null,
+              "answer": "a",
+              "status": "answered"
+            }
+          },
+          "answer": "b",
+          "status": "answered"
+        },
+        {
+          "id": "Q-02",
+          "title": "Control question without follow-up",
+          "context": "Question that does NOT trigger any follow_up — serves as control in fixture.",
+          "options": [
+            { "id": "a", "label": "Option A", "description": "" },
+            { "id": "b", "label": "Option B", "description": "" }
+          ],
+          "criticality": "required",
+          "follow_up": null,
+          "answer": "a",
+          "status": "answered"
+        },
+        {
+          "id": "Q-01-FU",
+          "title": "Where should the follow-up live in the JSON?",
+          "context": "Appended copy of Q-01's follow_up.question after Q-01 was answered with 'b'. Demonstrates post-refresh state.",
+          "options": [
+            { "id": "a", "label": "Inline in section.questions[]", "description": "Same array as parent" },
+            { "id": "b", "label": "Separate follow_ups[] array", "description": "Rejected for MVP" }
+          ],
+          "criticality": "required",
+          "follow_up": null,
+          "answer": "a",
+          "status": "answered"
+        }
+      ]
+    }
+  ]
+}

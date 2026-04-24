@@ -1,0 +1,76 @@
+{
+  "phase": "02-discuss-workflow-mode",
+  "generated_at": "2026-04-24T10:00:00.000Z",
+  "stats": {
+    "total": 4,
+    "answered": 2,
+    "remaining": 2,
+    "required_unanswered": 2
+  },
+  "sections": [
+    {
+      "id": "architecture",
+      "title": "Architecture Decisions",
+      "questions": [
+        {
+          "id": "Q-01",
+          "title": "Where should the --pro overlay live?",
+          "context": "D-02 locked: workflows/discuss-phase/modes/pro.md. Pattern identical to power.md.",
+          "options": [
+            { "id": "a", "label": "modes/pro.md", "description": "Standard overlay path" },
+            { "id": "b", "label": "discuss-phase-pro.md at workflow root", "description": "Rejected — bloats execution_context" }
+          ],
+          "criticality": "required",
+          "follow_up": null,
+          "answer": "a",
+          "status": "answered"
+        },
+        {
+          "id": "Q-02",
+          "title": "JSON filename convention?",
+          "context": "D-06 locked: {padded}-PRO-QUESTIONS.json to avoid collision with --power {padded}-QUESTIONS.json.",
+          "options": [
+            { "id": "a", "label": "{padded}-PRO-QUESTIONS.json", "description": "Namespaced, no collision" },
+            { "id": "b", "label": "{padded}-QUESTIONS.json", "description": "Collides with --power" }
+          ],
+          "criticality": "required",
+          "follow_up": null,
+          "answer": "a",
+          "status": "answered"
+        }
+      ]
+    },
+    {
+      "id": "completeness",
+      "title": "Completeness Gate",
+      "questions": [
+        {
+          "id": "Q-03",
+          "title": "Default criticality for questions?",
+          "context": "D-13: all questions are required by default. Finalize aborts if any required unanswered.",
+          "options": [
+            { "id": "a", "label": "required", "description": "Strictest — all must answer" },
+            { "id": "b", "label": "optional", "description": "Permissive — would allow partial finalize" }
+          ],
+          "criticality": "required",
+          "follow_up": null,
+          "answer": null,
+          "status": "unanswered"
+        },
+        {
+          "id": "Q-04",
+          "title": "Behavior on missing required answers at finalize?",
+          "context": "D-13: pattern aligned with --power — abort, list Q-IDs, no CONTEXT.md written.",
+          "options": [
+            { "id": "a", "label": "Abort + list Q-IDs", "description": "Explicit rendezvous via JSON edit" },
+            { "id": "b", "label": "Write partial CONTEXT.md with warnings", "description": "Rejected — strictness-first" }
+          ],
+          "criticality": "required",
+          "follow_up": null,
+          "answer": null,
+          "status": "unanswered"
+        }
+      ]
+    }
+  ]
+}
