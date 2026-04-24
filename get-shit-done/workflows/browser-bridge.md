@@ -60,6 +60,8 @@ Use `reply` to stream a textual Claude → browser message without blocking. Pas
 
 <step name="error_handling">
 If any tool returns `isError: true`, read the error text, log it, and fall back to the terminal equivalent (`AskUserQuestion`, `printf`, standard dialog). Never loop on the same tool call — the plugin already retries internally via its 120 s poll window. Two consecutive timeouts mean the browser is not connected; abort the browser-side path and finish the workflow on the terminal.
+
+**TEXT_MODE fallback (non-Claude runtimes):** Set `TEXT_MODE=true` if `--text` is present in `$ARGUMENTS` OR `text_mode` from config is `true`. When TEXT_MODE is active, replace every `AskUserQuestion` fallback with a plain-text numbered list and ask the user to type their choice number. This is required for non-Claude runtimes (OpenAI Codex, Gemini CLI, etc.) where `AskUserQuestion` is not available and would otherwise render as an inert markdown code block, stalling the workflow.
 </step>
 
 </process>
