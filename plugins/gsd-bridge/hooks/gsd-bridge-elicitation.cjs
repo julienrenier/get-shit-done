@@ -32,7 +32,7 @@ let input = '';
 const stdinTimeout = setTimeout(() => process.exit(0), STDIN_TIMEOUT_MS);
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => { input += chunk; });
-process.stdin.on('end', () => {
+process.stdin.on('end', async () => {
   clearTimeout(stdinTimeout);
   try {
     const data = JSON.parse(input);
@@ -102,10 +102,14 @@ process.stdin.on('end', () => {
           timeoutMs: TOTAL_TIMEOUT_MS,
         });
         if (!sidecarHandle) throw new Error('sidecar bind failed');
-        // Synchronous best-effort: server.listen is async, but Node typically binds
-        // synchronously enough that handle.port is non-zero before the next tick. If
-        // not, fall through (the polling loop on response.json still wakes us).
-        const port = sidecarHandle.port;
+        // server.listen is async; await the bind via the handle's whenReady
+        // promise (resolves on the 'listening' event). The outer 'end' handler
+        // is async, so awaiting here is safe; the response.json polling loop
+        // stays sync (Atomics.wait) once we resume below.
+        const port = await Promise.race([
+          sidecarHandle.whenReady,
+          new Promise((resolve) => setTimeout(() => resolve(0), 1000)),
+        ]);
         if (!port) throw new Error('sidecar port unbound');
         const submitUrl = 'http://127.0.0.1:' + port + '/submit';
 
@@ -150,9 +154,11 @@ process.stdin.on('end', () => {
           // half-written / invalid: keep polling
         }
       }
-      // Sync sleep via Atomics.wait (Node built-in, no external dep).
-      // SharedArrayBuffer + Int32Array give a sync wait without spawning a subprocess.
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, POLL_INTERVAL_MS);
+      // Async sleep — yields the event loop so the sidecar HTTP server (when
+      // active in the Phase 4 webview branch) can accept POST /submit and
+      // write response.json. The legacy form/url branch tolerates the same
+      // sleep semantics; only the implementation primitive changed.
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     }
 
     if (!response) {
