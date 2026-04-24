@@ -75,7 +75,14 @@ Write `{phase_dir}/{padded_phase}-PRO-QUESTIONS.json` conforming to
 - `stats`: `{ total, answered: 0, remaining: <total>, required_unanswered: <count of required> }`.
 - `generated_at`: current ISO-8601 timestamp.
 
-Write the file with a single Write tool call (new file per invocation — Write is safe).
+Write the file with a single Write tool call. If
+`{phase_dir}/{padded_phase}-PRO-QUESTIONS.json` already exists from a prior
+invocation (e.g., resumed phase, `refresh` loop re-entry, or recovery), the
+dispatcher MUST `Read` it BEFORE calling `Write` — the Claude Code subagent
+runtime enforces Read-before-Write above the permission layer (see CLAUDE.md
+§"Subagent Quirk (Claude Code)"), and skipping the Read blocks the Write
+without a permission prompt. The pristine-invocation path (no pre-existing
+file) needs no Read.
 
 **Sub-step 2 — notify_user:**
 
@@ -96,17 +103,33 @@ Open the file and fill in the `answer` field for each question. Then reply with:
 Fire-and-forget: invoke `show_playground` via the `gsd-bridge` plugin so the user
 sees the 8-step diagram while filling `{padded_phase}-PRO-QUESTIONS.json` out-of-band.
 
+**URL contract (per `get-shit-done/workflows/browser-bridge.md` Sub-step
+`invoke_show_playground`, lines 51-55):** `show_playground` accepts a `url` string
+in either `file://<absolute-path>` or `http://localhost:PORT` form. The `url`
+parameter is forwarded verbatim by the plugin (see
+`plugins/gsd-bridge/src/tools.ts:143-147` — no `bridgeDir` traversal guard is
+applied to `url`, so `browser-bridge.md` critical rule 2 does not apply here;
+rule 2 targets filesystem-path arguments resolved under cwd, not URL arguments
+forwarded to the browser).
+
+**Resolution:** `{phase_dir}` is project-relative (e.g.,
+`.planning/phases/03-discuss-webview-integration`). The dispatcher MUST
+resolve it to an absolute path before building the URL (e.g., via
+`path.resolve(phase_dir)` in the SDK, or the equivalent cwd-join in the
+runtime). The placeholder `{phase_dir_abs}` in the example below stands for
+this resolved absolute path. Do NOT emit `file://{phase_dir}/...` with a
+relative `phase_dir` — `file://.planning/...` parses `.planning` as the URL
+host and never resolves to a local file.
+
     Tool: show_playground
     Args: {
-      "url": "file://{phase_dir}/discuss-playground.html"
+      "url": "file://{phase_dir_abs}/discuss-playground.html"
     }
 
-`{phase_dir}` is SDK-resolved by the dispatcher's `initialize` step. The plugin
-validates the path is under `cwd`; the playground file is inside the project tree.
-
-**Fallback:** if the plugin is absent, the file does not exist, or the tool returns
-`isError: true`, log `[bridge] <error>` to the terminal and proceed to sub-step 4.
-No retry — per browser-bridge.md critical rule 3, two consecutive timeouts mean the
+**Fallback:** if the plugin is absent, the file does not exist, the URL is
+malformed for any reason, or the tool returns `isError: true`, log
+`[bridge] <error>` to the terminal and proceed to Sub-step 4. No retry —
+per `browser-bridge.md` critical rule 3, two consecutive timeouts mean the
 browser is not connected; do not block the workflow.
 
 **Sub-step 4 — wait_loop:**
